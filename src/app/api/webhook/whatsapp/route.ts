@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+// DEPRECATED (Phase 1 direction change): the product no longer uses WhatsApp.
+// Kitchen staff now log via the web voice screen at /record. This route is kept
+// intact for reference but nothing relies on it. See /api/record for the live
+// path.
+
 // The webhook needs Node.js APIs and must not be statically optimized.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
