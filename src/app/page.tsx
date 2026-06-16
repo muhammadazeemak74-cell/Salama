@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main style={{ maxWidth: 640, margin: "0 auto", padding: "3rem 1.5rem" }}>
@@ -7,9 +9,10 @@ export default function Home() {
         the Phase 1 scaffold.
       </p>
       <p>
-        The WhatsApp Cloud API webhook is wired at{" "}
-        <code>/api/webhook/whatsapp</code>. Incoming messages are logged to the
-        server console; AI processing is not implemented yet.
+        Kitchen staff log compliance events by voice from the browser. Open the{" "}
+        <Link href="/record">voice recording screen</Link> to record a log; it
+        is transcribed, interpreted against the Dubai Food Code, and stored as an
+        immutable record.
       </p>
     </main>
   );
