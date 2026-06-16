@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { toFile } from "openai/uploads";
 import { getOpenAI } from "@/lib/openai";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -50,6 +51,24 @@ function classifyType(
 }
 
 /**
+ * Pick a filename extension that matches the uploaded audio's content type.
+ * gpt-4o-transcribe decodes by the filename extension, so it must be correct.
+ * iOS Safari produces audio/mp4; Chrome/Firefox typically audio/webm.
+ */
+function extensionForContentType(contentType: string): string {
+  const ct = contentType.toLowerCase();
+  if (ct.includes("mp4") || ct.includes("m4a") || ct.includes("aac")) {
+    return "mp4";
+  }
+  if (ct.includes("webm")) return "webm";
+  if (ct.includes("ogg")) return "ogg";
+  if (ct.includes("wav")) return "wav";
+  if (ct.includes("mpeg") || ct.includes("mp3")) return "mp3";
+  // Fall back to webm (the common non-iOS case).
+  return "webm";
+}
+
+/**
  * POST — receive a recorded voice note, transcribe it, interpret it as a
  * food-safety log, store an immutable record, and return transcript + reply.
  */
@@ -73,13 +92,28 @@ export async function POST(request: Request) {
     );
   }
 
+  // Log the received format so we can diagnose decode failures.
+  const contentType = audio.type || "application/octet-stream";
+  console.log("[record] received audio", {
+    contentType,
+    bytes: audio.size,
+    uploadedName: audio.name,
+  });
+
   const openai = getOpenAI();
 
   // 1. Transcribe the voice note.
+  // gpt-4o-transcribe decodes by filename extension + content type, so build a
+  // properly named file via OpenAI's toFile() helper instead of passing the raw
+  // blob (which arrives without a usable name and fails to decode).
   let transcript: string;
   try {
+    const ext = extensionForContentType(contentType);
+    const uploadFile = await toFile(audio, `recording.${ext}`, {
+      type: contentType,
+    });
     const transcription = await openai.audio.transcriptions.create({
-      file: audio,
+      file: uploadFile,
       model: "gpt-4o-transcribe",
     });
     transcript = transcription.text?.trim() ?? "";

@@ -4,6 +4,32 @@ import { useCallback, useRef, useState } from "react";
 
 type Status = "idle" | "recording" | "uploading" | "done" | "error";
 
+// Preferred recording formats, most-compatible first. iOS Safari only supports
+// audio/mp4; Chrome/Firefox use webm/opus.
+const PREFERRED_MIME_TYPES = [
+  "audio/mp4",
+  "audio/webm;codecs=opus",
+  "audio/webm",
+];
+
+/** Pick the first MediaRecorder mimeType the browser actually supports. */
+function pickMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  for (const type of PREFERRED_MIME_TYPES) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return undefined; // let the browser choose its default
+}
+
+/** File extension matching the chosen mimeType (mp4 -> .mp4, webm -> .webm). */
+function extensionForMimeType(mimeType: string): string {
+  const t = mimeType.toLowerCase();
+  if (t.includes("mp4") || t.includes("m4a") || t.includes("aac")) return "mp4";
+  if (t.includes("webm")) return "webm";
+  if (t.includes("ogg")) return "ogg";
+  return "webm";
+}
+
 export default function RecordPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
@@ -19,12 +45,12 @@ export default function RecordPage() {
     streamRef.current = null;
   }, []);
 
-  const upload = useCallback(async (blob: Blob) => {
+  const upload = useCallback(async (blob: Blob, filename: string) => {
     setStatus("uploading");
     setErrorMsg("");
     try {
       const form = new FormData();
-      form.append("audio", blob, "recording.webm");
+      form.append("audio", blob, filename);
       const res = await fetch("/api/record", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong.");
@@ -47,20 +73,25 @@ export default function RecordPage() {
       streamRef.current = stream;
       chunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = pickMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
         stopTracks();
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
+        // Use the recorder's actual mimeType for the Blob and a matching file
+        // extension/name so the server (and OpenAI) can decode it.
+        const actualType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: actualType });
         if (blob.size === 0) {
           setStatus("idle");
           return;
         }
-        void upload(blob);
+        const filename = `recording.${extensionForMimeType(actualType)}`;
+        void upload(blob, filename);
       };
 
       recorder.start();
