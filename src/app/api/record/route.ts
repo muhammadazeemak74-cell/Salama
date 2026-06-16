@@ -12,6 +12,10 @@ export const dynamic = "force-dynamic";
 const DEFAULT_ESTABLISHMENT_ID = "00000000-0000-0000-0000-000000000001";
 const DEFAULT_EMIRATE = "dubai";
 
+// Private bucket for the original recordings. Audio is compliance evidence and
+// must never be publicly accessible.
+const RECORDINGS_BUCKET = "recordings";
+
 // The exact system prompt specified for the gpt-4o interpretation step.
 const SYSTEM_PROMPT =
   "You are a UAE food-safety assistant. A kitchen worker has logged something " +
@@ -66,6 +70,51 @@ function extensionForContentType(contentType: string): string {
   if (ct.includes("mpeg") || ct.includes("mp3")) return "mp3";
   // Fall back to webm (the common non-iOS case).
   return "webm";
+}
+
+/**
+ * Persist the original audio to the private "recordings" bucket as compliance
+ * evidence and return its storage path. Best-effort: returns null on any
+ * failure so a storage problem can never break the core record loop.
+ */
+async function storeAudioEvidence(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  audio: File,
+  contentType: string,
+  establishmentId: string,
+): Promise<string | null> {
+  try {
+    // Ensure the bucket exists (private). Ignore the error if it already does.
+    const { error: bucketError } = await supabase.storage.createBucket(
+      RECORDINGS_BUCKET,
+      { public: false },
+    );
+    if (bucketError && !/exist/i.test(bucketError.message)) {
+      // A non "already exists" error is unexpected, but still non-fatal.
+      console.error("[record] createBucket error", bucketError);
+    }
+
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const ext = extensionForContentType(contentType);
+    const path = `${establishmentId}/${year}/${month}/${crypto.randomUUID()}.${ext}`;
+
+    const buffer = Buffer.from(await audio.arrayBuffer());
+    const { error: uploadError } = await supabase.storage
+      .from(RECORDINGS_BUCKET)
+      .upload(path, buffer, { contentType, upsert: false });
+
+    if (uploadError) {
+      console.error("[record] audio upload failed", uploadError);
+      return null;
+    }
+
+    return path;
+  } catch (err) {
+    console.error("[record] audio upload failed", err);
+    return null;
+  }
 }
 
 /**
@@ -151,10 +200,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Store an immutable compliance record (append-only — see CLAUDE.md).
-  try {
-    const supabase = getSupabaseAdmin();
+  // 3. Persist the original audio as evidence (best-effort; never fatal).
+  const supabase = getSupabaseAdmin();
+  const rawInputUrl = await storeAudioEvidence(
+    supabase,
+    audio,
+    contentType,
+    DEFAULT_ESTABLISHMENT_ID,
+  );
 
+  // 4. Store an immutable compliance record (append-only — see CLAUDE.md).
+  try {
     // Ensure the single Phase 1 establishment exists so the FK holds even if
     // the seed migration has not been applied.
     await supabase
@@ -173,6 +229,7 @@ export async function POST(request: Request) {
       emirate: DEFAULT_EMIRATE,
       logged_by: "web", // browser recording; no per-user auth in Phase 1
       type: classifyType(transcript),
+      raw_input_url: rawInputUrl, // storage path in the private bucket, or null
       parsed_data: { transcript },
       corrective_action: reply,
     });
