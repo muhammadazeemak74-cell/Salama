@@ -54,6 +54,72 @@ function classifyType(
   return "other";
 }
 
+type ComplianceStatus = "pass" | "fail" | "unknown";
+
+interface ValidationResult {
+  status: ComplianceStatus;
+  check: "chiller" | "freezer" | "hot_hold" | null;
+  reading_c: number | null;
+  limit_c: number | null;
+}
+
+/**
+ * Lightweight, deterministic pass/fail check against the Dubai Food Code limits
+ * already encoded in the system prompt: chiller ≤ 5°C, freezer ≤ -18°C,
+ * hot-held food ≥ 63°C. Returns "unknown" when no clear reading + context can
+ * be parsed (e.g. non-temperature events, or numbers we cannot interpret).
+ */
+function determineValidation(transcript: string): ValidationResult {
+  // Normalise spoken negatives ("minus 20" -> "-20") before parsing numbers.
+  const text = transcript.toLowerCase().replace(/minus\s+/g, "-");
+
+  let check: ValidationResult["check"] = null;
+  let limit: number | null = null;
+  let comparator: "<=" | ">=" | null = null;
+
+  if (/freez/.test(text)) {
+    check = "freezer";
+    limit = -18;
+    comparator = "<=";
+  } else if (/chiller|fridge|refrigerat|chill|walk[- ]?in|cold\s*room/.test(text)) {
+    check = "chiller";
+    limit = 5;
+    comparator = "<=";
+  } else if (/hot[- ]?hold|hot\s*food|bain[- ]?marie|keep\s*hot|holding\s*hot/.test(text)) {
+    check = "hot_hold";
+    limit = 63;
+    comparator = ">=";
+  }
+
+  // Prefer a number explicitly tied to a temperature unit; otherwise, if we
+  // already identified the context, accept the first bare number.
+  let reading: number | null = null;
+  const withUnit = text.match(
+    /(-?\d+(?:\.\d+)?)\s*(?:°|deg|degree|degrees|celsius|c\b)/,
+  );
+  if (withUnit) {
+    reading = Number.parseFloat(withUnit[1]);
+  } else if (check) {
+    const bare = text.match(/-?\d+(?:\.\d+)?/);
+    if (bare) reading = Number.parseFloat(bare[0]);
+  }
+
+  if (check === null || comparator === null || limit === null) {
+    return { status: "unknown", check, reading_c: reading, limit_c: limit };
+  }
+  if (reading === null || Number.isNaN(reading)) {
+    return { status: "unknown", check, reading_c: null, limit_c: limit };
+  }
+
+  const pass = comparator === "<=" ? reading <= limit : reading >= limit;
+  return {
+    status: pass ? "pass" : "fail",
+    check,
+    reading_c: reading,
+    limit_c: limit,
+  };
+}
+
 /**
  * Pick a filename extension that matches the uploaded audio's content type.
  * gpt-4o-transcribe decodes by the filename extension, so it must be correct.
@@ -231,6 +297,7 @@ export async function POST(request: Request) {
       type: classifyType(transcript),
       raw_input_url: rawInputUrl, // storage path in the private bucket, or null
       parsed_data: { transcript },
+      validation_result: determineValidation(transcript),
       corrective_action: reply,
     });
 
