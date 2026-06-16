@@ -12,6 +12,7 @@ interface LogRow {
   id: string;
   created_at: string;
   type: string | null;
+  logged_by: string | null;
   raw_input_url: string | null;
   parsed_data: { transcript?: string } | null;
   validation_result: { status?: string } | null;
@@ -19,6 +20,16 @@ interface LogRow {
 }
 
 const DUBAI_TZ = "Asia/Dubai";
+
+/**
+ * logged_by is stored as "Name (uuid)" for identified staff; show just the
+ * readable name. Falls back to the raw value (e.g. "Unidentified", "web").
+ */
+function loggedByName(value: string | null): string {
+  if (!value) return "—";
+  const match = value.match(/^(.*) \([0-9a-fA-F-]{36}\)$/);
+  return match ? match[1] : value;
+}
 
 /** "16 Jun 2026, 2:04 PM" in UAE (Asia/Dubai) time. */
 function formatDubai(iso: string): string {
@@ -97,7 +108,7 @@ export default async function DashboardPage() {
     const { data, error } = await supabase
       .from("compliance_logs")
       .select(
-        "id, created_at, type, raw_input_url, parsed_data, validation_result, corrective_action",
+        "id, created_at, type, logged_by, raw_input_url, parsed_data, validation_result, corrective_action",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -157,21 +168,36 @@ export default async function DashboardPage() {
             Immutable food-safety log records, newest first.
           </p>
         </div>
-        <a
-          href="/api/dashboard-logout"
-          style={{
-            flexShrink: 0,
-            fontSize: "0.9rem",
-            fontWeight: 600,
-            color: "#2563eb",
-            textDecoration: "none",
-            padding: "0.4rem 0.75rem",
-            border: "1px solid #d1d5db",
-            borderRadius: 8,
-          }}
-        >
-          Log out
-        </a>
+        <nav style={{ flexShrink: 0, display: "flex", gap: "0.5rem" }}>
+          <a
+            href="/dashboard/staff"
+            style={{
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: "#2563eb",
+              textDecoration: "none",
+              padding: "0.4rem 0.75rem",
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+            }}
+          >
+            Staff
+          </a>
+          <a
+            href="/api/dashboard-logout"
+            style={{
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: "#2563eb",
+              textDecoration: "none",
+              padding: "0.4rem 0.75rem",
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+            }}
+          >
+            Log out
+          </a>
+        </nav>
       </header>
 
       {/* Summary cards */}
@@ -223,6 +249,7 @@ export default async function DashboardPage() {
             <thead style={{ background: "#f9fafb" }}>
               <tr>
                 <th style={headStyle}>Date &amp; time</th>
+                <th style={headStyle}>Logged by</th>
                 <th style={headStyle}>Status</th>
                 <th style={headStyle}>What the worker said</th>
                 <th style={headStyle}>AI reply</th>
@@ -237,6 +264,9 @@ export default async function DashboardPage() {
                   <tr key={row.id}>
                     <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
                       {formatDubai(row.created_at)}
+                    </td>
+                    <td style={{ ...cellStyle, fontWeight: 600 }}>
+                      {loggedByName(row.logged_by)}
                     </td>
                     <td style={cellStyle}>
                       <StatusBadge status={status} />
