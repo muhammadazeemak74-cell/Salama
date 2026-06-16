@@ -1,4 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { isAuthenticated } from "@/lib/auth";
+import PinGate from "./PinGate";
 
 // Reads live data with the service role at request time.
 export const runtime = "nodejs";
@@ -82,6 +84,11 @@ function StatusBadge({ status }: { status: ComplianceStatus }) {
 }
 
 export default async function DashboardPage() {
+  // PIN gate (pilot): /record stays open for kitchen staff; this page is locked.
+  if (!(await isAuthenticated())) {
+    return <PinGate />;
+  }
+
   let rows: LogRow[] = [];
   let loadError: string | null = null;
 
@@ -133,13 +140,38 @@ export default async function DashboardPage() {
         background: "#ffffff",
       }}
     >
-      <header style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>
-          Compliance Dashboard
-        </h1>
-        <p style={{ color: "#6b7280", margin: 0 }}>
-          Immutable food-safety log records, newest first.
-        </p>
+      <header
+        style={{
+          marginBottom: "1.5rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>
+            Compliance Dashboard
+          </h1>
+          <p style={{ color: "#6b7280", margin: 0 }}>
+            Immutable food-safety log records, newest first.
+          </p>
+        </div>
+        <a
+          href="/api/dashboard-logout"
+          style={{
+            flexShrink: 0,
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            color: "#2563eb",
+            textDecoration: "none",
+            padding: "0.4rem 0.75rem",
+            border: "1px solid #d1d5db",
+            borderRadius: 8,
+          }}
+        >
+          Log out
+        </a>
       </header>
 
       {/* Summary cards */}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { isAuthenticated } from "@/lib/auth";
 
 // Needs the service role + must never be cached.
 export const runtime = "nodejs";
@@ -14,8 +15,14 @@ const SIGNED_URL_TTL_SECONDS = 60;
  * The "recordings" bucket is PRIVATE (compliance evidence). This route mints a
  * short-lived signed URL with the service role and redirects to it, so an
  * <audio> element can stream the file without exposing the bucket publicly.
+ *
+ * Manager-only: requires the same dashboard PIN cookie.
  */
 export async function GET(request: Request) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const path = searchParams.get("path");
 
