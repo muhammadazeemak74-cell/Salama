@@ -66,12 +66,118 @@ interface ValidationResult {
 /**
  * Lightweight, deterministic pass/fail check against the Dubai Food Code limits
  * already encoded in the system prompt: chiller ≤ 5°C, freezer ≤ -18°C,
- * hot-held food ≥ 63°C. Returns "unknown" when no clear reading + context can
- * be parsed (e.g. non-temperature events, or numbers we cannot interpret).
+ * hot-held food ≥ 63°C. Returns "unknown" only when there is genuinely no
+ * recognizable context or no parseable number.
  */
+
+// Number words up to 100, so spoken readings ("minus ten", "twenty five") work.
+const ONES: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19,
+};
+const TENS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70,
+  eighty: 80, ninety: 90,
+};
+
+const UNIT_WORDS = new Set(["degree", "degrees", "deg", "celsius", "c"]);
+
+function isNumberWord(tk: string): boolean {
+  return tk in ONES || tk in TENS || tk === "hundred";
+}
+
+/** Consume consecutive number words starting at `start`; returns value + end. */
+function readNumberWords(
+  tokens: string[],
+  start: number,
+): { value: number; end: number } | null {
+  let i = start;
+  let temp = 0;
+  let total = 0;
+  let consumed = 0;
+  while (i < tokens.length) {
+    const w = tokens[i];
+    if (w === "hundred") {
+      temp = (temp === 0 ? 1 : temp) * 100;
+      total += temp;
+      temp = 0;
+    } else if (w in TENS) {
+      temp += TENS[w];
+    } else if (w in ONES) {
+      temp += ONES[w];
+    } else {
+      break;
+    }
+    i++;
+    consumed++;
+  }
+  if (consumed === 0) return null;
+  return { value: total + temp, end: i };
+}
+
+/**
+ * Extract a temperature in °C from natural text. Handles digit ("-10", "5.5",
+ * "8 degrees") and word forms ("minus ten", "negative 10", "twenty five"),
+ * plus "N below"/"below zero". Pass 1 prefers a number tied to a unit (so
+ * "chiller 2 is 8 degrees" reads 8, not 2); pass 2 accepts the first number.
+ */
+function parseTemperature(text: string): number | null {
+  // Separate digits from letters/symbols so "10c"/"minus10"/"10°" tokenize,
+  // and drop sentence periods while keeping decimal points ("5.5").
+  const norm = text
+    .toLowerCase()
+    .replace(/°/g, " degrees ")
+    .replace(/\.(?!\d)/g, " ")
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2");
+  const tokens = norm.split(/[\s,]+/).filter(Boolean);
+
+  const scan = (requireUnit: boolean): number | null => {
+    for (let i = 0; i < tokens.length; i++) {
+      let value: number | null = null;
+      let end = i;
+
+      if (/^-?\d+(?:\.\d+)?$/.test(tokens[i])) {
+        value = Number.parseFloat(tokens[i]);
+        end = i + 1;
+      } else if (isNumberWord(tokens[i])) {
+        const parsed = readNumberWords(tokens, i);
+        if (parsed) {
+          value = parsed.value;
+          end = parsed.end;
+        }
+      }
+      if (value === null || Number.isNaN(value)) continue;
+
+      // Skip any trailing unit words to look at what follows the reading.
+      let after = end;
+      let hadUnit = false;
+      while (after < tokens.length && UNIT_WORDS.has(tokens[after])) {
+        hadUnit = true;
+        after += 1;
+      }
+      if (requireUnit && !hadUnit) continue;
+
+      // Negative cues: "minus/negative N" before, or "N (degrees) below" after.
+      const prev = tokens[i - 1];
+      if (prev === "minus" || prev === "negative" || prev === "-") {
+        value = -Math.abs(value);
+      }
+      if (tokens[after] === "below") value = -Math.abs(value);
+
+      return value;
+    }
+    return null;
+  };
+
+  const withUnit = scan(true);
+  return withUnit !== null ? withUnit : scan(false);
+}
+
 function determineValidation(transcript: string): ValidationResult {
-  // Normalise spoken negatives ("minus 20" -> "-20") before parsing numbers.
-  const text = transcript.toLowerCase().replace(/minus\s+/g, "-");
+  const text = transcript.toLowerCase();
 
   let check: ValidationResult["check"] = null;
   let limit: number | null = null;
@@ -85,39 +191,35 @@ function determineValidation(transcript: string): ValidationResult {
     check = "chiller";
     limit = 5;
     comparator = "<=";
-  } else if (/hot[- ]?hold|hot\s*food|bain[- ]?marie|keep\s*hot|holding\s*hot/.test(text)) {
+  } else if (/hot[- ]?hold|bain[- ]?marie|\bhot\b|holding/.test(text)) {
     check = "hot_hold";
     limit = 63;
     comparator = ">=";
   }
 
-  // Prefer a number explicitly tied to a temperature unit; otherwise, if we
-  // already identified the context, accept the first bare number.
-  let reading: number | null = null;
-  const withUnit = text.match(
-    /(-?\d+(?:\.\d+)?)\s*(?:°|deg|degree|degrees|celsius|c\b)/,
-  );
-  if (withUnit) {
-    reading = Number.parseFloat(withUnit[1]);
-  } else if (check) {
-    const bare = text.match(/-?\d+(?:\.\d+)?/);
-    if (bare) reading = Number.parseFloat(bare[0]);
-  }
+  const reading = parseTemperature(text);
 
+  let status: ComplianceStatus;
   if (check === null || comparator === null || limit === null) {
-    return { status: "unknown", check, reading_c: reading, limit_c: limit };
-  }
-  if (reading === null || Number.isNaN(reading)) {
-    return { status: "unknown", check, reading_c: null, limit_c: limit };
+    status = "unknown";
+  } else if (reading === null || Number.isNaN(reading)) {
+    status = "unknown";
+  } else {
+    const pass = comparator === "<=" ? reading <= limit : reading >= limit;
+    status = pass ? "pass" : "fail";
   }
 
-  const pass = comparator === "<=" ? reading <= limit : reading >= limit;
-  return {
-    status: pass ? "pass" : "fail",
+  // TEMP DEBUG: trace context/reading/status so we can verify parsing on new
+  // recordings. Remove once validation is confirmed in production.
+  console.log("[record] validation debug", {
+    transcript,
     check,
-    reading_c: reading,
     limit_c: limit,
-  };
+    reading_c: reading,
+    status,
+  });
+
+  return { status, check, reading_c: reading, limit_c: limit };
 }
 
 /**
