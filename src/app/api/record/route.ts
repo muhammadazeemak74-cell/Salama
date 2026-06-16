@@ -219,16 +219,6 @@ function determineValidation(transcript: string): ValidationResult {
     status = pass ? "pass" : "fail";
   }
 
-  // TEMP DEBUG: trace context/reading/status so we can verify parsing on new
-  // recordings. Remove once validation is confirmed in production.
-  console.log("[record] validation debug", {
-    transcript,
-    check,
-    limit_c: limit,
-    reading_c: reading,
-    status,
-  });
-
   return { status, check, reading_c: reading, limit_c: limit };
 }
 
