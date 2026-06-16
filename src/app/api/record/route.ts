@@ -2,15 +2,14 @@ import { NextResponse } from "next/server";
 import { toFile } from "openai/uploads";
 import { getOpenAI } from "@/lib/openai";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import {
+  DEFAULT_ESTABLISHMENT_ID,
+  DEFAULT_EMIRATE,
+} from "@/lib/establishment";
 
 // Needs Node.js APIs (OpenAI SDK, file handling) and must never be cached.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Phase 1 serves a single establishment with a well-known id (see
-// supabase/migrations/0002_seed_default_establishment.sql).
-const DEFAULT_ESTABLISHMENT_ID = "00000000-0000-0000-0000-000000000001";
-const DEFAULT_EMIRATE = "dubai";
 
 // Private bucket for the original recordings. Audio is compliance evidence and
 // must never be publicly accessible.
@@ -286,15 +285,44 @@ async function storeAudioEvidence(
 }
 
 /**
+ * Resolve the submitted staff id to a "Name (id)" string for logged_by. The
+ * name is looked up server-side (never trusted from the client). Returns
+ * "Unidentified" if no/invalid staff — a missing staff member never blocks a
+ * log.
+ */
+async function resolveLoggedBy(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  staffId: string | null,
+): Promise<string> {
+  if (!staffId) return "Unidentified";
+  try {
+    const { data } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("id", staffId)
+      .eq("establishment_id", DEFAULT_ESTABLISHMENT_ID)
+      .maybeSingle();
+    if (!data) return "Unidentified";
+    return `${data.name} (${data.id})`;
+  } catch (err) {
+    console.error("[record] staff lookup failed", err);
+    return "Unidentified";
+  }
+}
+
+/**
  * POST — receive a recorded voice note, transcribe it, interpret it as a
  * food-safety log, store an immutable record, and return transcript + reply.
  */
 export async function POST(request: Request) {
   let audio: File | null = null;
+  let staffId: string | null = null;
   try {
     const form = await request.formData();
     const value = form.get("audio");
     if (value instanceof File) audio = value;
+    const sid = form.get("staffId");
+    if (typeof sid === "string" && sid.trim()) staffId = sid.trim();
   } catch {
     return NextResponse.json(
       { error: "Expected multipart/form-data with an 'audio' file." },
@@ -377,7 +405,10 @@ export async function POST(request: Request) {
     DEFAULT_ESTABLISHMENT_ID,
   );
 
-  // 4. Store an immutable compliance record (append-only — see CLAUDE.md).
+  // 4. Resolve who logged this (never blocks the record).
+  const loggedBy = await resolveLoggedBy(supabase, staffId);
+
+  // 5. Store an immutable compliance record (append-only — see CLAUDE.md).
   try {
     // Ensure the single Phase 1 establishment exists so the FK holds even if
     // the seed migration has not been applied.
@@ -395,7 +426,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.from("compliance_logs").insert({
       establishment_id: DEFAULT_ESTABLISHMENT_ID,
       emirate: DEFAULT_EMIRATE,
-      logged_by: "web", // browser recording; no per-user auth in Phase 1
+      logged_by: loggedBy,
       type: classifyType(transcript),
       raw_input_url: rawInputUrl, // storage path in the private bucket, or null
       parsed_data: { transcript },

@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "recording" | "uploading" | "done" | "error";
+
+interface StaffMember {
+  id: string;
+  name: string;
+}
+
+const STAFF_ID_KEY = "salama_staff_id";
+const STAFF_NAME_KEY = "salama_staff_name";
 
 // Preferred recording formats, most-compatible first. iOS Safari only supports
 // audio/mp4; Chrome/Firefox use webm/opus.
@@ -36,9 +44,76 @@ export default function RecordPage() {
   const [reply, setReply] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState("");
+  const [picking, setPicking] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  // Read inside upload to avoid a stale closure when selection changes.
+  const selectedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // Load active staff and restore the last-used selection on this device.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let savedId: string | null = null;
+      let savedName = "";
+      try {
+        savedId = localStorage.getItem(STAFF_ID_KEY);
+        savedName = localStorage.getItem(STAFF_NAME_KEY) ?? "";
+      } catch {
+        /* localStorage unavailable */
+      }
+
+      let list: StaffMember[] = [];
+      try {
+        const res = await fetch("/api/staff");
+        if (res.ok) {
+          const data = await res.json();
+          list = Array.isArray(data?.staff) ? data.staff : [];
+        }
+      } catch {
+        /* leave list empty */
+      }
+      if (cancelled) return;
+
+      setStaff(list);
+      const saved = savedId && list.find((m) => m.id === savedId);
+      if (saved) {
+        setSelectedId(saved.id);
+        setSelectedName(savedName || saved.name);
+      } else {
+        try {
+          localStorage.removeItem(STAFF_ID_KEY);
+          localStorage.removeItem(STAFF_NAME_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectStaff = useCallback((m: StaffMember) => {
+    setSelectedId(m.id);
+    setSelectedName(m.name);
+    setPicking(false);
+    try {
+      localStorage.setItem(STAFF_ID_KEY, m.id);
+      localStorage.setItem(STAFF_NAME_KEY, m.name);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -51,6 +126,7 @@ export default function RecordPage() {
     try {
       const form = new FormData();
       form.append("audio", blob, filename);
+      if (selectedIdRef.current) form.append("staffId", selectedIdRef.current);
       const res = await fetch("/api/record", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong.");
@@ -137,6 +213,87 @@ export default function RecordPage() {
         WebkitTouchCallout: "none",
       }}
     >
+      {staff.length > 0 && (
+        <div style={{ width: "100%", maxWidth: 720 }}>
+          {picking || !selectedId ? (
+            <>
+              <p
+                style={{
+                  fontSize: "clamp(1.1rem, 4vw, 1.5rem)",
+                  fontWeight: 600,
+                  margin: "0 0 1rem",
+                }}
+              >
+                Who is logging? — tap your name
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                  justifyContent: "center",
+                }}
+              >
+                {staff.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => selectStaff(m)}
+                    style={{
+                      fontSize: "clamp(1.1rem, 4vw, 1.5rem)",
+                      fontWeight: 700,
+                      padding: "0.85rem 1.4rem",
+                      borderRadius: 999,
+                      border:
+                        selectedId === m.id
+                          ? "2px solid #22c55e"
+                          : "2px solid #334155",
+                      background: selectedId === m.id ? "#16a34a" : "#1e293b",
+                      color: "#f8fafc",
+                      cursor: "pointer",
+                      minHeight: 56,
+                    }}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                fontSize: "clamp(1.1rem, 4vw, 1.5rem)",
+              }}
+            >
+              <span>
+                Logging as <strong>{selectedName}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  padding: "0.5rem 1rem",
+                  borderRadius: 999,
+                  border: "2px solid #334155",
+                  background: "#1e293b",
+                  color: "#93c5fd",
+                  cursor: "pointer",
+                }}
+              >
+                Change
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         aria-label="Hold to record"
