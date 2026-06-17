@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Wordmark from "@/components/Wordmark";
 
 type Status = "idle" | "recording" | "uploading" | "done" | "error";
 
@@ -211,8 +212,22 @@ export default function RecordPage() {
         WebkitUserSelect: "none",
         userSelect: "none",
         WebkitTouchCallout: "none",
+        position: "relative",
       }}
     >
+      <div
+        style={{
+          position: "absolute",
+          top: "1.1rem",
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <Wordmark tone="light" size={22} />
+      </div>
+
       {staff.length > 0 && (
         <div style={{ width: "100%", maxWidth: 720 }}>
           {picking || !selectedId ? (
@@ -283,7 +298,7 @@ export default function RecordPage() {
                   borderRadius: 999,
                   border: "2px solid #334155",
                   background: "#1e293b",
-                  color: "#93c5fd",
+                  color: "#86efac",
                   cursor: "pointer",
                 }}
               >

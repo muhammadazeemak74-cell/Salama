@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { isAuthenticated } from "@/lib/auth";
+import Wordmark, { BRAND_GREEN } from "@/components/Wordmark";
 import PinGate from "./PinGate";
 
 // Reads live data with the service role at request time.
@@ -151,34 +152,29 @@ export default async function DashboardPage() {
         background: "#ffffff",
       }}
     >
-      <header
+      <div
         style={{
-          marginBottom: "1.5rem",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: "1rem",
+          paddingBottom: "1.25rem",
+          marginBottom: "1.5rem",
+          borderBottom: "1px solid #e2e8f0",
         }}
       >
-        <div>
-          <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>
-            Compliance Dashboard
-          </h1>
-          <p style={{ color: "#6b7280", margin: 0 }}>
-            Immutable food-safety log records, newest first.
-          </p>
-        </div>
+        <Wordmark />
         <nav style={{ flexShrink: 0, display: "flex", gap: "0.5rem" }}>
           <a
             href="/dashboard/staff"
             style={{
               fontSize: "0.9rem",
               fontWeight: 600,
-              color: "#2563eb",
+              color: BRAND_GREEN,
               textDecoration: "none",
-              padding: "0.4rem 0.75rem",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
+              padding: "0.45rem 0.85rem",
+              border: "1px solid #cbd5e1",
+              borderRadius: 10,
             }}
           >
             Staff
@@ -188,16 +184,25 @@ export default async function DashboardPage() {
             style={{
               fontSize: "0.9rem",
               fontWeight: 600,
-              color: "#2563eb",
+              color: "#475569",
               textDecoration: "none",
-              padding: "0.4rem 0.75rem",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
+              padding: "0.45rem 0.85rem",
+              border: "1px solid #cbd5e1",
+              borderRadius: 10,
             }}
           >
             Log out
           </a>
         </nav>
+      </div>
+
+      <header style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>
+          Compliance Dashboard
+        </h1>
+        <p style={{ color: "#6b7280", margin: 0 }}>
+          Immutable food-safety log records, newest first.
+        </p>
       </header>
 
       {/* Summary cards */}
@@ -234,9 +239,10 @@ export default async function DashboardPage() {
       ) : (
         <div
           style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
             overflow: "hidden",
+            boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
           }}
         >
           <table
@@ -313,10 +319,11 @@ function SummaryCard({
     <div
       style={{
         flex: "1 1 200px",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
+        border: "1px solid #e2e8f0",
+        borderRadius: 16,
         padding: "1.25rem 1.5rem",
-        background: emphasis === "fail" && value > 0 ? "#fef2f2" : "#f9fafb",
+        background: emphasis === "fail" && value > 0 ? "#fef2f2" : "#ffffff",
+        boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
       }}
     >
       <div

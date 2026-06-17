@@ -89,12 +89,12 @@ export default function StaffManager({
             fontSize: "1rem",
             fontWeight: 700,
             padding: "0.65rem 1.25rem",
-            borderRadius: 8,
+            borderRadius: 10,
             border: "none",
             cursor:
               busy || name.trim().length === 0 ? "default" : "pointer",
             background:
-              busy || name.trim().length === 0 ? "#93c5fd" : "#2563eb",
+              busy || name.trim().length === 0 ? "#86efac" : "#16a34a",
             color: "#ffffff",
           }}
         >
