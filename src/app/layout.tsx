@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Salama",
-  description: "AI food-safety compliance assistant for UAE food establishments.",
+  title: "KitchenGuard",
+  description: "AI food-safety logging and compliance for UAE kitchens.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -14,6 +14,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           fontFamily:
             "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
           margin: 0,
+          background: "#f1f5f9",
+          color: "#0f172a",
         }}
       >
         {children}

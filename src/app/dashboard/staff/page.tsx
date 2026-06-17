@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { isAuthenticated } from "@/lib/auth";
 import { DEFAULT_ESTABLISHMENT_ID } from "@/lib/establishment";
+import Wordmark, { BRAND_GREEN } from "@/components/Wordmark";
 import PinGate from "../PinGate";
 import StaffManager, { type StaffMember } from "./StaffManager";
 
@@ -41,36 +42,40 @@ export default async function StaffPage() {
         background: "#ffffff",
       }}
     >
-      <header
+      <div
         style={{
-          marginBottom: "1.5rem",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: "1rem",
+          paddingBottom: "1.25rem",
+          marginBottom: "1.5rem",
+          borderBottom: "1px solid #e2e8f0",
         }}
       >
-        <div>
-          <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>Staff</h1>
-          <p style={{ color: "#6b7280", margin: 0 }}>
-            People who can log compliance events.
-          </p>
-        </div>
+        <Wordmark />
         <a
           href="/dashboard"
           style={{
             flexShrink: 0,
             fontSize: "0.9rem",
             fontWeight: 600,
-            color: "#2563eb",
+            color: BRAND_GREEN,
             textDecoration: "none",
-            padding: "0.4rem 0.75rem",
-            border: "1px solid #d1d5db",
-            borderRadius: 8,
+            padding: "0.45rem 0.85rem",
+            border: "1px solid #cbd5e1",
+            borderRadius: 10,
           }}
         >
           ← Dashboard
         </a>
+      </div>
+
+      <header style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.75rem", margin: "0 0 0.25rem" }}>Staff</h1>
+        <p style={{ color: "#6b7280", margin: 0 }}>
+          People who can log compliance events.
+        </p>
       </header>
 
       {loadError ? (

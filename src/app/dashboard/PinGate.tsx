@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Wordmark from "@/components/Wordmark";
 
 export default function PinGate() {
   const [pin, setPin] = useState("");
@@ -56,7 +57,9 @@ export default function PinGate() {
           textAlign: "center",
         }}
       >
-        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>Manager Dashboard</h1>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <Wordmark tone="light" size={28} />
+        </div>
         <p style={{ color: "#94a3b8", margin: 0 }}>Enter PIN</p>
 
         <input
@@ -96,7 +99,7 @@ export default function PinGate() {
             borderRadius: 12,
             border: "none",
             cursor: busy || pin.length === 0 ? "default" : "pointer",
-            background: busy || pin.length === 0 ? "#1d4ed8aa" : "#2563eb",
+            background: busy || pin.length === 0 ? "#86efac" : "#16a34a",
             color: "#ffffff",
           }}
         >
