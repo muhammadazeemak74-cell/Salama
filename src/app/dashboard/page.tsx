@@ -201,7 +201,7 @@ export default async function DashboardPage() {
           Compliance Dashboard
         </h1>
         <p style={{ color: "#6b7280", margin: 0 }}>
-          Immutable food-safety log records, newest first.
+          Tamper-proof food safety records, newest first.
         </p>
       </header>
 
