@@ -34,7 +34,7 @@ export default function RootLayout({
       lang="en"
       className={`${fraunces.variable} ${jakarta.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-midnight text-pearl font-sans">
+      <body className="min-h-full bg-carbon text-bone font-sans">
         <SmoothScrollProvider>
           <BackgroundScene />
           <div className="relative z-10">{children}</div>

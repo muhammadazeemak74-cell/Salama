@@ -27,8 +27,8 @@ export function BackgroundScene() {
         gl={{ antialias: true, powerPreference: "high-performance" }}
         camera={{ position: [0, 0.06, 0], fov: 55, near: 0.1, far: 100 }}
       >
-        <color attach="background" args={["#0a0e27"]} />
-        <fog attach="fog" args={["#0a0e27", 8, 42]} />
+        <color attach="background" args={["#0c0c0d"]} />
+        <fog attach="fog" args={["#0c0c0d", 8, 42]} />
         <ambientLight intensity={0.25} />
         <Suspense fallback={null}>
           <LightRoute

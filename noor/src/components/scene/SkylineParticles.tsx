@@ -23,8 +23,8 @@ export function SkylineParticles({ endZ, reduced }: SkylineParticlesProps) {
     const count = buildings * pointsPerBuilding;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
-    const warm = new THREE.Color("#ffcb94");
-    const cool = new THREE.Color("#9ff0f7");
+    const bright = new THREE.Color("#ffffff");
+    const graphite = new THREE.Color("#b9bbbe");
     let i = 0;
     const random = createSeededRandom(buildings * 104729 + pointsPerBuilding);
 
@@ -37,7 +37,7 @@ export function SkylineParticles({ endZ, reduced }: SkylineParticlesProps) {
         positions[i * 3] = x + (random() - 0.5) * 0.3;
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = z + (random() - 0.5) * 1.5;
-        const c = random() > 0.6 ? warm : cool;
+        const c = random() > 0.6 ? bright : graphite;
         colors[i * 3] = c.r;
         colors[i * 3 + 1] = c.g;
         colors[i * 3 + 2] = c.b;

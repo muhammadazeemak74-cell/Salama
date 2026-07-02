@@ -15,10 +15,10 @@ export async function Fleet() {
     <Section id="fleet">
       <div className="mb-14 max-w-2xl">
         <Eyebrow>The Fleet</Eyebrow>
-        <h2 className="font-display text-4xl text-pearl sm:text-5xl">
+        <h2 className="font-display text-4xl text-bone sm:text-5xl">
           Eight cars. One standard.
         </h2>
-        <p className="mt-4 text-pearl/60">
+        <p className="mt-4 text-bone/60">
           Every vehicle detailed, inspected and fuelled before you land.
           Pricing shown is a placeholder — final rates confirmed on booking.
         </p>

@@ -26,15 +26,15 @@ export async function ProofFooter() {
   );
 
   return (
-    <footer className="relative w-full border-t border-cyan-light/10 pt-20">
+    <footer className="relative w-full border-t border-white/10 pt-20">
       <div className="mx-auto w-full max-w-7xl px-6 sm:px-10">
-        <div className="grid grid-cols-1 gap-6 border-b border-cyan-light/10 pb-16 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 border-b border-white/10 pb-16 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <div key={stat.label} className="text-center lg:text-left">
-              <p className="text-gradient text-xs uppercase tracking-[0.25em]">
+              <p className="text-xs uppercase tracking-[0.25em] text-grey">
                 {stat.label}
               </p>
-              <p className="mt-2 font-display text-2xl text-pearl">
+              <p className="mt-2 font-display text-2xl text-bone">
                 {stat.value}
               </p>
             </div>
@@ -65,11 +65,11 @@ export async function ProofFooter() {
           })}
         </div>
 
-        <div className="flex flex-col items-center gap-6 border-t border-cyan-light/10 py-16 text-center">
-          <p className="font-display text-3xl text-pearl sm:text-4xl">
+        <div className="flex flex-col items-center gap-6 border-t border-white/10 py-16 text-center">
+          <p className="font-display text-3xl text-bone sm:text-4xl">
             {site.hours} &middot; {site.instagramHandle}
           </p>
-          <p className="max-w-md text-sm text-pearl/60">
+          <p className="max-w-md text-sm text-bone/60">
             {site.name} is a private chauffeur and rental service. Not a taxi
             or ride-hailing platform.
           </p>
@@ -78,7 +78,7 @@ export async function ProofFooter() {
           </Button>
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-4 border-t border-cyan-light/10 py-8 text-xs text-pearl/40 sm:flex-row">
+        <div className="flex flex-col items-center justify-between gap-4 border-t border-white/10 py-8 text-xs text-bone/40 sm:flex-row">
           <p>
             &copy; {new Date().getFullYear()} {site.name} Dubai. All rights
             reserved.

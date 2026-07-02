@@ -13,15 +13,15 @@ export async function Arrival() {
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-6 sm:px-10 lg:grid-cols-2">
         <div>
           <Eyebrow>The Arrival</Eyebrow>
-          <h2 className="font-display text-4xl leading-tight text-pearl sm:text-5xl">
+          <h2 className="font-display text-4xl leading-tight text-bone sm:text-5xl">
             Your Dubai begins the moment you land.
           </h2>
-          <p className="mt-6 max-w-md text-pearl/70">
+          <p className="mt-6 max-w-md text-bone/70">
             Meet & greet at DXB and DWC. Your chauffeur is waiting at the
             gate with your name on a sign, flight already tracked so the car
             is ready the instant you touch down.
           </p>
-          <p className="mt-4 max-w-md text-pearl/70">
+          <p className="mt-4 max-w-md text-bone/70">
             Luggage handled from belt to boot. From there, it&apos;s a quiet,
             direct line — door to door.
           </p>
@@ -44,7 +44,7 @@ export async function Arrival() {
           ) : (
             <GradientFallback index={0} label="Photography pending" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-midnight/70 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-carbon/70 via-transparent to-transparent" />
         </div>
       </div>
     </section>

@@ -42,7 +42,7 @@ export function FleetCard({ car, image, fallbackIndex }: FleetCardProps) {
       onMouseLeave={handleMouseLeave}
       style={{ rotateX, rotateY, transformPerspective: 800 }}
       className={`panel group relative flex h-full flex-col overflow-hidden rounded-2xl ${
-        car.halo ? "ring-1 ring-amber/50" : ""
+        car.halo ? "ring-1 ring-white/20" : ""
       }`}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden">
@@ -57,35 +57,35 @@ export function FleetCard({ car, image, fallbackIndex }: FleetCardProps) {
         ) : (
           <GradientFallback index={fallbackIndex} label="Photo pending" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-midnight via-midnight/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-carbon via-carbon/10 to-transparent" />
         {car.halo && (
-          <span className="absolute right-4 top-4 rounded-full bg-amber px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-midnight">
+          <span className="absolute right-4 top-4 rounded-full bg-bone px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-carbon">
             Halo
           </span>
         )}
         {car.mostBooked && (
-          <span className="absolute left-4 top-4 rounded-full bg-cyan-light px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-midnight">
+          <span className="absolute left-4 top-4 rounded-full border border-white/30 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-bone">
             Most Booked
           </span>
         )}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-6">
-        <p className="text-gradient text-xs uppercase tracking-[0.25em]">
+        <p className="text-xs uppercase tracking-[0.25em] text-grey">
           {car.make}
         </p>
-        <h3 className="font-display text-2xl text-pearl">{car.model}</h3>
-        <p className="text-sm text-pearl/60">{car.tagline}</p>
-        <div className="mt-3 flex items-center justify-between text-xs text-pearl/70">
+        <h3 className="font-display text-2xl text-bone">{car.model}</h3>
+        <p className="text-sm text-bone/60">{car.tagline}</p>
+        <div className="mt-3 flex items-center justify-between text-xs text-bone/70">
           <span>{car.seats} seats</span>
           <span>{car.driveMode}</span>
         </div>
-        <div className="mt-auto flex items-baseline justify-between border-t border-cyan-light/15 pt-4">
-          <span className="text-[11px] uppercase tracking-widest text-pearl/50">
+        <div className="mt-auto flex items-baseline justify-between border-t border-white/10 pt-4">
+          <span className="text-[11px] uppercase tracking-widest text-bone/50">
             From
           </span>
-          <span className="font-display text-xl text-amber-light">
+          <span className="font-display text-xl text-bone">
             AED {car.fromPriceAed.toLocaleString()}
-            <span className="text-xs text-pearl/50"> /day</span>
+            <span className="text-xs text-bone/50"> /day</span>
           </span>
         </div>
       </div>

@@ -9,7 +9,7 @@ export function Rentals() {
     <Section id="rentals">
       <div className="mb-14 max-w-2xl">
         <Eyebrow>By the Day, Week, or Month</Eyebrow>
-        <h2 className="font-display text-4xl text-pearl sm:text-5xl">
+        <h2 className="font-display text-4xl text-bone sm:text-5xl">
           Book for however long the trip runs.
         </h2>
       </div>
@@ -20,26 +20,26 @@ export function Rentals() {
             key={tier.period}
             className={`flex flex-col gap-6 rounded-2xl p-8 ${
               tier.featured
-                ? "panel ring-1 ring-amber/50"
-                : "border border-cyan-light/10 bg-midnight-2/40"
+                ? "panel ring-1 ring-white/20"
+                : "border border-white/10 bg-carbon-2/40"
             }`}
           >
             {tier.featured && (
-              <span className="w-fit rounded-full bg-amber px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-midnight">
+              <span className="w-fit rounded-full bg-bone px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-carbon">
                 Most booked
               </span>
             )}
-            <h3 className="font-display text-2xl text-pearl">
+            <h3 className="font-display text-2xl text-bone">
               {tier.period}
             </h3>
-            <p className="font-display text-4xl text-amber-light">
+            <p className="font-display text-4xl text-bone">
               AED {tier.fromPriceAed.toLocaleString()}
-              <span className="text-base text-pearl/50"> {tier.priceSuffix}</span>
+              <span className="text-base text-bone/50"> {tier.priceSuffix}</span>
             </p>
-            <ul className="flex flex-1 flex-col gap-3 text-sm text-pearl/70">
+            <ul className="flex flex-1 flex-col gap-3 text-sm text-bone/70">
               {tier.inclusions.map((item) => (
                 <li key={item} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-cyan-light" />
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-silver" />
                   {item}
                 </li>
               ))}

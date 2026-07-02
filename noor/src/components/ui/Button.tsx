@@ -20,8 +20,8 @@ export function Button({
     "inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium tracking-wide transition-all duration-300 whitespace-nowrap";
   const styles =
     variant === "primary"
-      ? "bg-amber text-midnight hover:bg-amber-light hover:shadow-[0_0_30px_rgba(255,171,94,0.35)]"
-      : "border border-cyan-light/30 text-pearl hover:border-cyan-light hover:bg-cyan-light/10";
+      ? "bg-bone text-carbon hover:bg-white hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+      : "border border-white/20 text-bone hover:border-white/50 hover:bg-white/5";
 
   return (
     <Link

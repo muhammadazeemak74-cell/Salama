@@ -25,21 +25,16 @@ export function createRouteCurve(): THREE.CatmullRomCurve3 {
 }
 
 const GRADIENT_STOPS = [
-  new THREE.Color("#4dd9e8"), // cyan
-  new THREE.Color("#9b7bf0"), // violet
-  new THREE.Color("#ffab5e"), // amber
+  new THREE.Color("#ffffff"), // luminous white core
+  new THREE.Color("#b9bbbe"), // silver falloff
 ];
 
-/** Cyan -> violet -> amber gradient along the route, t in [0, 1]. */
+/** White -> silver falloff along the route, t in [0, 1]. */
 export function routeGradientColor(
   t: number,
   out: THREE.Color = new THREE.Color()
 ): THREE.Color {
   const clamped = Math.min(1, Math.max(0, t));
-  if (clamped < 0.5) {
-    out.lerpColors(GRADIENT_STOPS[0], GRADIENT_STOPS[1], clamped / 0.5);
-  } else {
-    out.lerpColors(GRADIENT_STOPS[1], GRADIENT_STOPS[2], (clamped - 0.5) / 0.5);
-  }
+  out.lerpColors(GRADIENT_STOPS[0], GRADIENT_STOPS[1], clamped);
   return out;
 }

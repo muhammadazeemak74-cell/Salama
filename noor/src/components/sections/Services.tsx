@@ -9,7 +9,7 @@ export function Services() {
     <Section id="services">
       <div className="mb-14 max-w-2xl">
         <Eyebrow>Services</Eyebrow>
-        <h2 className="font-display text-4xl text-pearl sm:text-5xl">
+        <h2 className="font-display text-4xl text-bone sm:text-5xl">
           Wherever the trip takes you.
         </h2>
       </div>
@@ -20,13 +20,13 @@ export function Services() {
             key={service.index}
             className="panel flex flex-col gap-4 rounded-2xl p-7"
           >
-            <span className="font-display text-3xl text-cyan-light/70">
+            <span className="font-display text-3xl text-silver/40">
               {service.index}
             </span>
-            <h3 className="font-display text-xl text-pearl">
+            <h3 className="font-display text-xl text-bone">
               {service.title}
             </h3>
-            <p className="text-sm leading-relaxed text-pearl/60">
+            <p className="text-sm leading-relaxed text-bone/60">
               {service.description}
             </p>
           </div>

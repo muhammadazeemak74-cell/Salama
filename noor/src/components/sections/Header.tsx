@@ -17,7 +17,7 @@ export function Header() {
     >
       <Link
         href="#"
-        className="font-display text-lg tracking-[0.2em] text-pearl"
+        className="font-display text-lg tracking-[0.2em] text-bone"
       >
         NOOR
       </Link>

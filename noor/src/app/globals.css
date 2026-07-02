@@ -1,16 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-midnight: #0a0e27;
-  --color-midnight-2: #0d1230;
-  --color-midnight-3: #121838;
-  --color-cyan: #4dd9e8;
-  --color-cyan-light: #9ff0f7;
-  --color-violet: #9b7bf0;
-  --color-violet-light: #c3aef8;
-  --color-amber: #ffab5e;
-  --color-amber-light: #ffcb94;
-  --color-pearl: #f5f3f0;
+  --color-carbon: #0c0c0d;
+  --color-carbon-2: #131314;
+  --color-carbon-3: #17181a;
+  --color-bone: #f2f1ec;
+  --color-grey: #9c9c98;
+  --color-silver: #d6d6d2;
 
   --font-display: var(--font-display), "Fraunces", serif;
   --font-sans: var(--font-sans), "Plus Jakarta Sans", ui-sans-serif, sans-serif;
@@ -34,31 +30,20 @@ html {
 }
 
 body {
-  background: var(--color-midnight);
-  color: var(--color-pearl);
+  background: var(--color-carbon);
+  color: var(--color-bone);
 }
 
 ::selection {
-  background: var(--color-violet);
-  color: var(--color-midnight);
+  background: var(--color-silver);
+  color: var(--color-carbon);
 }
 
 .panel {
-  background: color-mix(in srgb, var(--color-midnight-2) 55%, transparent);
+  background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid color-mix(in srgb, var(--color-cyan-light) 14%, transparent);
-}
-
-.text-gradient {
-  background: linear-gradient(
-    90deg,
-    var(--color-cyan-light),
-    var(--color-violet-light)
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .text-balance-pretty {

@@ -1,8 +1,8 @@
 const GRADIENTS = [
-  "linear-gradient(135deg, #0d1230 0%, #2c2f6e 45%, #9b7bf0 100%)",
-  "linear-gradient(135deg, #0a0e27 0%, #14406b 50%, #4dd9e8 100%)",
-  "linear-gradient(135deg, #1a1030 0%, #6b3f8f 55%, #ffab5e 100%)",
-  "linear-gradient(135deg, #0a0e27 0%, #2c2f6e 40%, #4dd9e8 75%, #ffab5e 100%)",
+  "linear-gradient(135deg, #0c0c0d 0%, #232325 55%, #4a4a4c 100%)",
+  "linear-gradient(135deg, #131314 0%, #3a3a3c 55%, #b9bbbe 100%)",
+  "linear-gradient(135deg, #0c0c0d 0%, #2c2c2e 50%, #6a6a6c 100%)",
+  "linear-gradient(135deg, #17181a 0%, #3a3a3c 45%, #d6d6d2 100%)",
 ];
 
 interface GradientFallbackProps {
@@ -28,7 +28,7 @@ export function GradientFallback({
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
       {label && (
-        <span className="relative text-xs uppercase tracking-[0.3em] text-pearl/50">
+        <span className="relative text-xs uppercase tracking-[0.3em] text-bone/50">
           {label}
         </span>
       )}
