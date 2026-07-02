@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --color-onyx: #0a0a0b;
+  --color-onyx-2: #0f0f11;
+  --color-onyx-3: #161618;
+  --color-gold: #c6a15b;
+  --color-gold-light: #e4c98a;
+  --color-off-white: #f4f1ea;
+  --color-amber: #ff9a4d;
+
+  --font-display: var(--font-display), "Bodoni Moda", serif;
+  --font-sans: var(--font-sans), "Inter", ui-sans-serif, sans-serif;
+
+  --animate-fade-up: fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--color-onyx);
+  color: var(--color-off-white);
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-onyx);
+}
+
+.panel {
+  background: color-mix(in srgb, var(--color-onyx-2) 55%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 14%, transparent);
+}
+
+.text-balance-pretty {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
