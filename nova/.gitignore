@@ -29,3 +29,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated scrub frames (regenerated at build via extract:frames)
+/public/frames

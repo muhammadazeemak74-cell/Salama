@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SmoothScrollProvider } from "@/lib/scroll-provider";
-import { LaRutaScene } from "@/components/scene/LaRutaScene";
 import { site } from "@/data/content";
 
 const fraunces = Fraunces({
@@ -40,10 +39,7 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full font-sans text-ink">
-        <SmoothScrollProvider>
-          <LaRutaScene />
-          <div className="relative z-10">{children}</div>
-        </SmoothScrollProvider>
+        <SmoothScrollProvider>{children}</SmoothScrollProvider>
       </body>
     </html>
   );

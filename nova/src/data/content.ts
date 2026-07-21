@@ -111,6 +111,42 @@ export const hero = {
   secondaryCta: "Ver experiencias",
 } as const;
 
+/**
+ * Cinematic film chapters that sit between the editorial sections. Each maps to
+ * a scrubbed footage clip (public/footage/scene-N.mp4) with a graceful Unsplash
+ * still fallback keyed by `imageSlot`.
+ */
+export const filmChapters = {
+  hero: { scene: "scene-1", imageSlot: "hero" as ImageSlot, alt: "Dubái desde el aire" },
+  desert: {
+    scene: "scene-2",
+    imageSlot: "desert" as ImageSlot,
+    alt: "Dunas del desierto de Dubái",
+    kicker: "Experiencias",
+    title: "El desierto te espera.",
+    subtitle:
+      "Dunas doradas, un té al atardecer y una noche bajo las estrellas — a solo unos minutos de la ciudad.",
+  },
+  marina: {
+    scene: "scene-3",
+    imageSlot: "yacht" as ImageSlot,
+    alt: "Marina de Dubái y yates",
+    kicker: "A tu medida",
+    title: "El mar, a tu ritmo.",
+    subtitle:
+      "Marina, yates privados y planes que diseñamos contigo, para vivir Dubái sin prisas.",
+  },
+  arrival: {
+    scene: "scene-4",
+    imageSlot: "cityTour" as ImageSlot,
+    alt: "Un ícono de Dubái de noche",
+    kicker: "Tu llegada",
+    title: "Bienvenido a Dubái.",
+    subtitle:
+      "Desde el aterrizaje hasta el último atardecer, estamos a tu lado en cada paso.",
+  },
+} as const;
+
 export const about = {
   eyebrow: "Quiénes somos",
   title: "Un anfitrión local para tu viaje a los Emiratos.",

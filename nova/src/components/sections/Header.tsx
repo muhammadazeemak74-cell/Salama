@@ -34,7 +34,11 @@ export function Header() {
             onError={() => setLogoOk(false)}
           />
           {!logoOk && (
-            <span className="font-display text-lg font-semibold tracking-tight text-ink">
+            <span
+              className={`font-display text-lg font-semibold tracking-tight transition-colors duration-300 ${
+                scrolled ? "text-ink" : "text-white drop-shadow-[0_1px_8px_rgba(20,48,74,0.6)]"
+              }`}
+            >
               {site.logoLockup.first}{" "}
               <span className="text-orange">{site.logoLockup.second}</span>
             </span>
@@ -46,7 +50,11 @@ export function Header() {
             <a
               key={item.href}
               href={item.href}
-              className="text-sm font-medium text-ink/70 transition-colors hover:text-ink"
+              className={`text-sm font-medium transition-colors duration-300 ${
+                scrolled
+                  ? "text-ink/70 hover:text-ink"
+                  : "text-white/85 hover:text-white drop-shadow-[0_1px_8px_rgba(20,48,74,0.6)]"
+              }`}
             >
               {item.label}
             </a>
