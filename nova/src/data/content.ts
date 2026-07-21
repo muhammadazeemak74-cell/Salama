@@ -44,6 +44,8 @@ export interface Experience {
   description: string;
   highlights: string[];
   imageSlot: ImageSlot;
+  /** Client-supplied square flyer (public/brand). Shown uncropped when present. */
+  flyer?: string;
 }
 
 export interface Pillar {
@@ -187,6 +189,7 @@ export const experiences = {
   items: [
     {
       slug: "traslados-aeropuerto",
+      flyer: "/brand/flyer-airport.png",
       title: "Traslados de Aeropuerto",
       groupSize: "1–6 personas",
       description:
@@ -196,6 +199,7 @@ export const experiences = {
     },
     {
       slug: "dubai-city-tour",
+      flyer: "/brand/flyer-city-tour.png",
       title: "Dubai City Tour",
       groupSize: "1–6 personas",
       description:
@@ -209,6 +213,7 @@ export const experiences = {
     },
     {
       slug: "abu-dhabi-experience",
+      flyer: "/brand/flyer-abu-dhabi.png",
       title: "Abu Dhabi Experience",
       groupSize: "1–6 personas",
       description:
@@ -222,6 +227,7 @@ export const experiences = {
     },
     {
       slug: "desert-safari",
+      flyer: "/brand/flyer-desert-safari.png",
       title: "Desert Safari",
       groupSize: "1–6 personas",
       description:
@@ -235,6 +241,7 @@ export const experiences = {
     },
     {
       slug: "yacht-experience",
+      flyer: "/brand/flyer-yacht.png",
       title: "Yacht Experience",
       groupSize: "1–10 personas",
       description:
@@ -244,6 +251,7 @@ export const experiences = {
     },
     {
       slug: "photography-experience",
+      flyer: "/brand/flyer-photography.png",
       title: "Photography Experience",
       groupSize: "1–4 personas",
       description:

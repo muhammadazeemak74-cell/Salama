@@ -6,7 +6,6 @@ import { WhatsAppButton } from "../ui/WhatsAppButton";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
-  const [logoOk, setLogoOk] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -19,30 +18,27 @@ export function Header() {
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "border-b border-ink/8 bg-base/80 backdrop-blur-md"
+          ? "border-b border-ink/8 bg-base/90 backdrop-blur-md"
           : "border-b border-transparent"
       }`}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 sm:px-8">
-        <a href="#top" className="flex items-center gap-2" aria-label={site.name}>
-          {/* Real logo dropped at /public/logo.png swaps in; text is fallback. */}
-          <img
-            src="/logo.png"
-            alt={site.name}
-            className={`h-8 w-auto ${logoOk ? "block" : "hidden"}`}
-            onLoad={() => setLogoOk(true)}
-            onError={() => setLogoOk(false)}
-          />
-          {!logoOk && (
-            <span
-              className={`font-display text-lg font-semibold tracking-tight transition-colors duration-300 ${
-                scrolled ? "text-ink" : "text-white drop-shadow-[0_1px_8px_rgba(20,48,74,0.6)]"
-              }`}
-            >
-              {site.logoLockup.first}{" "}
-              <span className="text-orange">{site.logoLockup.second}</span>
-            </span>
-          )}
+        <a href="#top" className="flex items-center" aria-label={site.name}>
+          {/* Logo has a white background: mix-blend-multiply drops the white on
+              our warm off-white header; over the film (not scrolled) a white
+              chip gives it a surface so it reads on the video. */}
+          <span
+            className={`inline-flex items-center rounded-lg transition-all duration-300 ${
+              scrolled ? "" : "bg-white/95 p-1.5 shadow-sm"
+            }`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo.png"
+              alt={site.name}
+              className="h-12 w-auto mix-blend-multiply"
+            />
+          </span>
         </a>
 
         <nav className="hidden items-center gap-8 md:flex">

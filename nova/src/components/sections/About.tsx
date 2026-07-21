@@ -5,6 +5,7 @@ import { Eyebrow } from "../ui/Eyebrow";
 import { Reveal } from "../ui/Reveal";
 import { Icon } from "../ui/Icon";
 import { SmartImage } from "../ui/SmartImage";
+import { ZoomableImage } from "../ui/ZoomableImage";
 
 export function About({
   imagePrimary,
@@ -74,6 +75,21 @@ export function About({
           </Reveal>
         </div>
       </div>
+
+      {/* Client brochure — full-width feature, click to enlarge. */}
+      <Reveal delay={0.1} className="mt-16">
+        <ZoomableImage
+          src="/brand/brochure.jpg"
+          alt="Folleto de Nova Path Explorer"
+          width={2560}
+          height={1706}
+          sizes="(min-width: 1152px) 1104px, 92vw"
+          quality={90}
+          className="overflow-hidden rounded-[1.75rem] border border-white/60 shadow-[0_40px_90px_-45px_rgba(20,48,74,0.55)]"
+          imgClassName="rounded-[1.75rem]"
+          hint="Ver folleto completo"
+        />
+      </Reveal>
     </Section>
   );
 }

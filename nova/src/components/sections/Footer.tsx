@@ -69,11 +69,13 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="font-display text-lg font-semibold tracking-tight text-ink">
-              {site.logoLockup.first}{" "}
-              <span className="text-orange">{site.logoLockup.second}</span>
-            </p>
-            <p className="mt-1 text-sm italic text-ink/55">{site.tagline}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo.png"
+              alt={site.name}
+              className="h-16 w-auto mix-blend-multiply"
+            />
+            <p className="mt-2 text-sm italic text-ink/55">{site.tagline}</p>
           </div>
           <p className="text-xs uppercase tracking-[0.2em] text-ink/45">
             {site.location}
