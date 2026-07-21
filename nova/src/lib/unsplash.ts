@@ -75,7 +75,14 @@ const EMPTY: ResolvedImages = Object.fromEntries(
  */
 export async function resolveImages(): Promise<ResolvedImages> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY;
-  if (!accessKey) return EMPTY;
+  if (!accessKey) {
+    console.warn(
+      "[nova] UNSPLASH_ACCESS_KEY is not set — section photos will fall back " +
+        "to brand-gradient placeholders. Set it in .env.local (see .env.example) " +
+        "to load real Dubai photography."
+    );
+    return EMPTY;
+  }
 
   const slots = Object.keys(imageQueries) as ImageSlot[];
   const results = await Promise.all(
