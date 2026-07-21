@@ -71,7 +71,7 @@ export function ScrubScene({
     const nav = navigator as Navigator & { deviceMemory?: number };
     const lowMem = typeof nav.deviceMemory === "number" && nav.deviceMemory <= 4;
     const isMobile = window.innerWidth < 768;
-    const res = isMobile || lowMem ? 720 : 1440;
+    const res = isMobile || lowMem ? 720 : 1920;
     const disposeOffscreen = isMobile;
 
     const url = (i: number) => `/frames/${scene}/${res}/frame-${pad4(i + 1)}.jpg`;
@@ -300,7 +300,7 @@ export function ScrubScene({
       <div className="sticky top-0 h-dvh w-full overflow-hidden bg-ink">
         {/* Poster (first frame) — instant paint, no blank flash. */}
         <img
-          src={`/frames/${scene}/1440/frame-0001.jpg`}
+          src={`/frames/${scene}/1920/frame-0001.jpg`}
           alt={fallbackAlt}
           aria-hidden="true"
           decoding="async"

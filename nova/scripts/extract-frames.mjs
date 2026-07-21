@@ -23,10 +23,10 @@ const FOOTAGE_DIR = path.join(ROOT, "public", "footage");
 const FRAMES_DIR = path.join(ROOT, "public", "frames");
 
 const SCENES = ["scene-1", "scene-2", "scene-3", "scene-4"];
-const WIDTHS = [1440, 720];
+const WIDTHS = [1920, 720]; // hi / lo tiers (never upscaled past the source)
 const FPS = 13; // ~12–15 fps sampling
 const MAX_FRAMES = 160; // cap per scene
-const QSCALE = { 1440: 4, 720: 5 }; // mjpeg quality (~q75)
+const QSCALE = { 1920: 3, 720: 4 }; // mjpeg quality (lower = sharper, ~q82)
 const FORCE = !!process.env.NOVA_FORCE_FRAMES;
 
 function jpgCount(dir) {
@@ -41,7 +41,9 @@ function extract(input, outDir, width) {
     ffmpeg(input)
       .outputOptions([
         "-vf",
-        `fps=${FPS},scale=${width}:-2:flags=lanczos`,
+        // Never upscale past the source width — extracting a 720p clip at 1920
+        // adds bytes and softness but no detail. min(width, iw) keeps native.
+        `fps=${FPS},scale=w='min(${width}\\,iw)':h=-2:flags=lanczos`,
         "-qscale:v",
         String(QSCALE[width]),
         "-frames:v",
@@ -66,10 +68,10 @@ async function run() {
       continue;
     }
 
-    const dir1440 = path.join(FRAMES_DIR, scene, "1440");
+    const dirHi = path.join(FRAMES_DIR, scene, String(WIDTHS[0]));
     // Local speed: skip re-extraction if frames already exist (unless forced).
-    if (!FORCE && jpgCount(dir1440) > 0) {
-      const count = jpgCount(dir1440);
+    if (!FORCE && jpgCount(dirHi) > 0) {
+      const count = jpgCount(dirHi);
       console.log(`[frames] ${scene}: ${count} frames already present — skipping.`);
       scenes[scene] = { count };
       continue;
@@ -81,7 +83,7 @@ async function run() {
         const outDir = path.join(FRAMES_DIR, scene, String(width));
         await extract(input, outDir, width);
         const n = jpgCount(outDir);
-        if (width === 1440) count = n;
+        if (width === WIDTHS[0]) count = n; // hi tier drives the frame count
         console.log(`[frames] ${scene} @${width}px: ${n} frames`);
       }
       scenes[scene] = { count };
