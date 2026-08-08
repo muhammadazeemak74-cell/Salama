@@ -180,3 +180,90 @@ would produce a confident answer with no information in it.
 
 This file stands as the pre-registration for the moment the real harness and
 data are supplied.
+
+---
+
+# Amendment 1 — matched-geometry null replaces criterion 1's ">0"
+
+**Added 2026-08-08. Pre-registered BEFORE any real data was loaded and before
+any real-data result was observed.** The sections above are otherwise unchanged;
+this amendment replaces the hurdle in criterion 1 and adds nothing else. The
+grid is still 90 configs per polarity, the cost model, the 70/30 split, the
+Bonferroni thresholds and criteria 2-5 all stand as written.
+
+## Why the old hurdle is wrong
+
+Criterion 1 required net expectancy **> 0**. That presumes zero is the
+no-edge value. The verification pass showed it is not: the engine carries a
+residual intrabar-resolution artifact — the fill bar's extremes both trigger
+the entry and resolve the exit, and bar data cannot order those events — and
+the artifact **scales with bar geometry**, specifically with the ratio of
+resolution-bar range to box height. A hurdle of zero therefore silently varies
+in difficulty across the grid, and is easiest exactly where the artifact is
+largest.
+
+Zero is also not the no-edge value once costs are charged, so the true hurdle
+is not even a fixed negative number: it depends on the config's own trade
+frequency, holding period and session mix.
+
+The remedy is to stop assuming the hurdle and measure it, per config, on the
+real series.
+
+## The null
+
+For each config, a null distribution of net expectancy is built by running the
+**identical engine and identical cost model** over resamples of the **real** bar
+series:
+
+- **Stationary block bootstrap** (Politis-Romano) of the real bars, block
+  length by **Politis-White** — the same selector already pre-registered in §5
+  for the test statistic, reused rather than introduced as a new knob.
+- Resampling operates on per-bar geometry deltas `(gap, up, ch, dn)` carried
+  together, so every bar in a resample is a real bar's exact shape. **Bar range,
+  body, gap, the box-height distribution and within-block volatility clustering
+  are preserved.** Original timestamps are reused so the session-varying spread
+  lands on the same hours.
+- What is destroyed is **serial structure across blocks** — the only thing a
+  genuine edge could live in. Anything that survives is artifact plus noise.
+- **>= 200 resamples**, per config.
+
+## The amended criterion
+
+> **Criterion 1 (amended).** Net expectancy must exceed the **97.5th percentile
+> of its own matched null distribution**, in-sample **and** out-of-sample. The
+> `n >= 200` trades requirement is unchanged.
+
+Define `excess = net_expectancy - null_p97.5`.
+
+> **If `excess <= 0`, REJECT — regardless of the raw sign of net expectancy.**
+
+A positive raw expectancy that fails to clear its own null is artifact, not
+edge, and is to be reported as such. Symmetrically, this amendment can make the
+hurdle *easier* than zero where the null is negative — that is intended and is
+not a loosening, because the null is measured on the same costs and the same
+geometry the config actually faces.
+
+## Reporting
+
+Per config, in `grid_net.csv` and in `VERDICT.md` for the nominated config:
+
+| column | meaning |
+|---|---|
+| `net_expectancy` | observed, net, pessimistic resolution |
+| `null_mean` | mean of the matched null |
+| `null_p975` | 97.5th percentile — the hurdle |
+| `null_excess` | observed minus hurdle; must be > 0 |
+| `null_resamples`, `null_block_length` | provenance |
+
+## Scope limits, stated in advance
+
+- The null is measured on the **real series only**. Running it on synthetic
+  data is not a substitute and its output would not be reported as a result.
+- The null is computed for **every tradeable config**, not only those with
+  positive raw expectancy. A config with negative net expectancy can still
+  clear a more negative null, and excluding it in advance would bias the grid.
+- Nomination order is unchanged: the OOS block stays locked until one config is
+  nominated from in-sample results. The OOS null is computed **after**
+  nomination, on the OOS block, for the nominated config only.
+- This amendment cannot rescue anything. It only ever raises or lowers a
+  measured hurdle; it adds no filter, no parameter and no grid entry.

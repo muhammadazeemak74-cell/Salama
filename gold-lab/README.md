@@ -11,15 +11,19 @@ quoted, because none exists.**
 
 ```
 three_breakout/ACCEPTANCE_CRITERIA.md   frozen pre-registration — read first
+  (+ Amendment 1: matched-geometry null replaces criterion 1's ">0")
 three_breakout/ADDENDUM_01_FILL_RESOLUTION.md   intrabar fill resolution
+  (+ 01-A: 1m figures are bounds; 01-B: tick resolution collapses the bracket)
 goldlab/costs.py                        spread + commission model
 goldlab/data.py                         loader, resampling, 70/30 split
 goldlab/strategy.py                     pattern detection + OCO execution
 goldlab/metrics.py                      expectancy, PF, drawdown, BH table
 goldlab/stats.py                        studentized stationary bootstrap
+goldlab/nullmodel.py                    matched-geometry null (Amendment 1)
 run_three_breakout.py                   phase-ordered protocol runner
 tests/test_execution.py                 engine verification (25 tests)
-tests/test_verification.py              golden master + sentinels (12 tests)
+tests/test_verification.py              golden master, sentinels, ticks (18)
+tests/test_nullmodel.py                 matched-geometry null (10 tests)
 tests/synthetic.py                      seeded random walk, binomial helper
 ```
 
@@ -28,7 +32,7 @@ tests/synthetic.py                      seeded random walk, binomial helper
 ```bash
 pip install -r requirements.txt
 python3 -m pytest tests/ -q
-python3 run_three_breakout.py --data path/to/XAUUSD_1m.csv
+python3 run_three_breakout.py --data path/to/XAUUSD_1m.csv [--ticks ticks.csv]
 ```
 
 Input CSV needs `timestamp,open,high,low,close`, timestamps UTC, strictly
@@ -38,6 +42,11 @@ placeholder spread profile to a measured one — supply them if you have them.
 `--stop-after {1..5}` halts at an earlier phase. It cannot skip ahead.
 
 Cost overrides: `--spread-ticks`, `--commission`, `--tick-size`.
+
+`--ticks` takes `timestamp,price` or `timestamp,bid,ask`. Supplying it upgrades
+1m from bounded to estimated — see Fill resolution below.
+
+`--null-resamples` defaults to 200 and is refused below it (Amendment 1).
 
 ## Phase order is enforced in code
 
@@ -62,6 +71,22 @@ configured timeframe; **order triggering and exits resolve on a finer series**:
   OCO legs touched takes the **losing** leg (determined by resolving both and
   taking the worse net R, not by guessing from candle colour); stop and target
   both touched takes the **stop**.
+- **ticks, when supplied** (`--ticks`, Addendum 01-B) — the resolution series at
+  *every* timeframe including 1m.
+
+A tick is stored as a **zero-range bar** (`open == high == low == close`), which
+is what a tick is. That makes tick resolution exact rather than merely finer:
+since `buy_trigger > sell_trigger`, and since a filled position's target is on
+the opposite side of entry from its stop, one price cannot touch both levels.
+Ambiguity is structurally impossible, so `assumption_frac` is exactly `0.0` and
+the pessimistic/optimistic bracket has exactly zero width. Both are asserted
+across every 1m config in the grid.
+
+**1m figures are BOUNDS without ticks and ESTIMATES with them.** Pessimistic-by-
+outcome selects the leg whose result is worse, which no market participant can
+see, so without ticks 1m pessimistic is a lower bound and optimistic an upper
+bound (Addendum 01-A). `VERDICT.md` always states which mode produced its
+numbers — `ticks`, `1m_bars` or `self`.
 
 Each config reports `assumption_resolved`, `assumption_frac`, and the
 `ASSUMPTION_DEPENDENT` flag when more than 5% of its trades were settled by
@@ -69,9 +94,34 @@ tie-break rather than observed sequence. 1m additionally carries
 `net_expectancy_optimistic_delta` — pre-declared non-binding, and unable to
 rescue a failing config.
 
+## The hurdle is measured, not assumed
+
+Criterion 1 originally required net expectancy **> 0**. Amendment 1 replaces
+that, because zero is not the no-edge value: the residual intrabar artifact
+scales with bar geometry, so a hurdle of zero is easiest exactly where the
+artifact is largest, and costs move the true no-edge point somewhere negative
+that varies per config.
+
+Instead the hurdle is measured per config on the **real** series. A
+matched-geometry null is built by stationary block bootstrap (Politis-White
+block length — the selector already pre-registered for the test statistic, not
+a new knob) over per-bar geometry deltas `(gap, up, ch, dn)` carried together,
+so every resampled bar is a real bar's exact shape. Bar range, body, gap, the
+box-height distribution and within-block volatility clustering all survive;
+serial structure across blocks does not. Original timestamps are reused so the
+session-varying spread lands on the same hours.
+
+> Net expectancy must exceed the **97.5th percentile of its own matched null**,
+> in-sample **and** out-of-sample. `excess <= 0` is a REJECT regardless of raw
+> sign.
+
+Reported per config: `null_mean`, `null_p975`, `null_excess`, `null_block_length`,
+`null_resamples`. The null runs on the real series only — running it on
+synthetic data is not a substitute and its output is not a result.
+
 ## What the tests establish
 
-37 tests. That the engine implements the spec + Addendum 01 — box construction,
+53 tests. That the engine implements the spec + Addendum 01 — box construction,
 both OCO legs, S1/S2 stops, `target_k` scaling, expiry, one-position-at-a-time,
 red/green mirroring, sub-resolution above 1m, the losing-leg and stop-first
 tie-breaks, assumption accounting, and gap fills at the open including a
@@ -102,8 +152,11 @@ deleted; none of this is a result about gold.
 
 The chunked vectorized level search landed as an untested refactor alongside
 two logic changes. `_search_levels_reference()` restores the pre-vectorization
-naive loop and is kept permanently, reference-only, wired in behind
-`run(..., search="reference")`.
+naive loop. **It is now the DEFAULT execution path**; the chunked path is
+retained only as the golden-master comparison target, reachable via
+`run(..., search="chunked")` and marked non-default and slower at its
+definition. Retaining it costs one dict lookup per `run()` call, not per bar,
+so it stays.
 
 Both were run on the identical fixed engine (gap fix and Addendum 01 present in
 both), seed 20260808, 40k bars, all 180 configs. Asserted **per trade**, not
@@ -120,7 +173,7 @@ reference 12.7s. The chunked path evaluates 8192-element boolean arrays even
 when the barrier is two bars away. The earlier 4m42s -> 58s figure conflated
 three simultaneous changes and misattributed the gain; it was not the
 vectorization. The fast path is retained only because it is now proven
-equivalent, not because it is fast.
+equivalent, not because it is fast — and it is no longer what executes.
 
 ### 2. Lookahead sentinel — re-run, and the original null was wrong
 
@@ -231,6 +284,17 @@ treating any number as an answer.
 
 ## Runtime
 
-~1 minute for all 180 configs over 400k 1-minute bars, single-threaded,
-including the 1m optimistic sensitivity re-run. A multi-year 1m history
-(~2M bars) should land in the 5-10 minute range.
+Measured, single-threaded, default (scalar) search backend:
+
+| stage | cost |
+|---|---|
+| 180-config grid, 100k bars | ~13s (chunked backend: ~38s) |
+| matched-geometry null | ~200x one grid pass |
+
+The null dominates and scales roughly linearly with bar count: a smoke run over
+8.4k in-sample bars took ~4.5 minutes for 200 resamples x 180 configs. A
+multi-year 1m history will take hours, and phase 2b is the place to parallelise
+if that matters. `--stop-after 2` skips it when you only want the grid.
+
+The earlier claim that vectorization delivered 4m42s -> 58s was wrong; see
+Verification pass §1.

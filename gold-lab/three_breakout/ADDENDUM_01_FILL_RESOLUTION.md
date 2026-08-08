@@ -172,3 +172,62 @@ Consequences, all labeling:
 - This is one more reason the §8 BH-vs-spread table is the decisive diagnostic:
   the regime where the artifact is worst is the same regime where the box is
   too small to clear costs.
+
+---
+
+# Amendment 01-B — tick resolution collapses the 1m bracket
+
+**Added 2026-08-08, before any real data.** Adds an optional input and states
+what it does to the 1m language. No acceptance criterion, threshold or grid
+entry changes. When ticks are absent, nothing changes and 01-A stands in full.
+
+## The input
+
+An optional tick series may be supplied alongside the bars: `timestamp` plus
+either `price`, or `bid`/`ask` (mid is taken). When present it becomes the
+**resolution series at every timeframe, including 1m** — order triggering and
+position resolution run against ticks exactly as >= 5m already runs against 1m
+base bars. Pattern detection and the `N_expiry` window are unchanged and still
+run on the configured timeframe.
+
+## Why this is exact rather than merely finer
+
+A tick is represented as a **zero-range bar**: `open == high == low == close`.
+That is what a tick is — one price, no range. The consequence is structural,
+not statistical:
+
+- The OCO legs sit at `box_high + buffer` and `box_low - buffer`, with
+  `buy_trigger > sell_trigger`. A single price cannot be at or above the first
+  and at or below the second. **Entry ambiguity cannot occur.**
+- For a filled position the target is on the opposite side of entry from the
+  stop. A single price cannot be at or beyond both. **Exit ambiguity cannot
+  occur.**
+
+So under tick resolution `assumption_frac` is exactly `0.0` — not small, zero —
+and the pessimistic/optimistic bracket has exactly **zero width**. Both are
+asserted in the test suite, at the level of every 1m config in the grid.
+
+## What that does to the 1m language
+
+| | ticks ABSENT | ticks PRESENT |
+|---|---|---|
+| 1m pessimistic | LOWER bound (binds) | the estimate |
+| 1m optimistic | UPPER bound | identical to pessimistic |
+| bracket width | > 0, reported | exactly 0 |
+| 1m figures | **bounds**, per 01-A | **estimates** |
+
+With ticks supplied, "1m net expectancy is X" becomes a permitted statement.
+Without them, 01-A's prohibition stands unchanged.
+
+`VERDICT.md` states which resolution mode produced its numbers — `ticks`,
+`1m_bars`, or `self` — so a reader never has to infer whether they are holding
+an estimate or a bound.
+
+## What this does not fix
+
+Tick resolution removes the *tie-break* ambiguity. It does **not** by itself
+retire the intrabar artifact described in 01-A, because that artifact comes
+from the fill bar's extremes serving two roles at once, and only shrinks as the
+resolution series gets finer. Ticks shrink it as far as the data allows. The
+matched-geometry null (`ACCEPTANCE_CRITERIA.md` Amendment 1) is what actually
+measures whatever residual remains, and it binds in both modes.

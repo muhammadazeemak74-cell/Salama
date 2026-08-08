@@ -47,14 +47,16 @@ def gm_case():
 
 # --- 1. golden-master equivalence -----------------------------------------
 
-def test_vectorized_search_matches_reference(gm_case):
-    """The fast level search must reproduce the naive loop trade-for-trade.
+def test_search_backends_agree(gm_case):
+    """The chunked search must reproduce the default scalar path trade-for-trade.
 
-    Guards future perf work: if these diverge, the VECTORIZED path is wrong
-    until proven otherwise. Never adjust the reference to match it.
+    Guards future perf work. `reference` (naive scalar) is the DEFAULT and the
+    faster of the two; `chunked` is retained only as this comparison target. If
+    they diverge, the CHUNKED path is wrong until proven otherwise — never
+    adjust the reference to match it.
     """
     base, costs, tf_bars = gm_case
-    fast = _grid_trades(base, tf_bars, costs, "vectorized")
+    fast = _grid_trades(base, tf_bars, costs, "chunked")
     ref = _grid_trades(base, tf_bars, costs, "reference")
 
     assert set(fast) == set(ref) and len(fast) == 180
@@ -73,6 +75,13 @@ def test_vectorized_search_matches_reference(gm_case):
         total += len(f_trades)
 
     assert total > 10_000, f"only {total} trades compared — sample too thin"
+
+
+def test_default_search_backend_is_the_scalar_reference():
+    """The default must be the measured-faster path, not the chunked one."""
+    from goldlab.strategy import DEFAULT_SEARCH, SEARCH_BACKENDS, _first_touch_ref
+    assert DEFAULT_SEARCH == "reference"
+    assert SEARCH_BACKENDS[DEFAULT_SEARCH][1] is _first_touch_ref
 
 
 # --- 2. lookahead sentinel -------------------------------------------------
@@ -272,3 +281,125 @@ def test_binomial_helper_matches_known_values():
     assert binomial_two_sided_p(50, 100) == pytest.approx(1.0, abs=1e-9)
     assert binomial_two_sided_p(75, 100) < 1e-5
     assert binomial_two_sided_p(0, 10) == pytest.approx(2 * 0.5**10)
+
+
+# --- 6. tick sub-resolution for 1m (Addendum 01-B) -------------------------
+# A tick is a zero-range bar, so it cannot straddle two levels. Under tick
+# resolution every sequence is observed, no tie-break can fire, and the
+# pessimistic/optimistic bracket collapses to zero width.
+
+def _ticks(prices, start="2024-01-02 09:03", freq="1s"):
+    import pandas as pd
+    idx = pd.date_range(start, periods=len(prices), freq=freq, tz="UTC")
+    p = np.asarray(prices, dtype=float)
+    return pd.DataFrame({"open": p, "high": p, "low": p, "close": p}, index=idx)
+
+
+def _one_minute_case():
+    """A 1m bar that spans BOTH the 99.50 stop and the 104.52 target.
+
+    Box from GREEN3 is [102.00, 99.50]; buy trigger 102.01, risk 2.51,
+    target 104.52. Bar 3 fills the long; bar 4 touches both levels, so on bar
+    data alone the sequence is unknowable and the tie-break decides.
+    """
+    return _bars(GREEN3 + [
+        (101.8, 102.5, 101.7, 102.3),
+        (102.3, 105.0, 99.0, 100.0),
+    ])
+
+
+def test_ticks_resolve_a_true_stop_then_target_sequence():
+    """True path: down to the stop FIRST, then up through the target.
+
+    The bar alone cannot show this. Ticks can.
+    """
+    b = _one_minute_case()
+    # bar 4 spans 09:04. Path: 102.30 -> 99.00 (stop) -> 105.00 (target).
+    tk = _ticks([102.3, 101.0, 99.5, 99.0, 101.0, 104.52, 105.0],
+                start="2024-01-02 09:04")
+    t = run(b, CFG, ZERO, ticks=tk)[0][0]
+    assert t.exit_reason == "stop"
+    assert t.ambiguous_exit is False        # observed, not assumed
+    assert t.gross_r < 0
+
+
+def test_ticks_resolve_a_true_target_then_stop_sequence_against_the_bound():
+    """True path: UP through the target first, then down to the stop.
+
+    This is the discriminating case. The pessimistic bound says "stop" and the
+    optimistic bound says "target"; only tick resolution can say which actually
+    happened. Here the truth is `target`, so tick resolution must disagree with
+    the pessimistic bound that binds when ticks are absent.
+    """
+    b = _one_minute_case()
+    tk = _ticks([102.3, 103.5, 104.52, 105.0, 102.0, 99.5, 99.0],
+                start="2024-01-02 09:04")
+
+    observed = run(b, CFG, ZERO, ticks=tk)[0][0]
+    assert observed.exit_reason == "target"
+    assert observed.ambiguous_exit is False   # observed, not assumed
+    assert observed.gross_r > 0
+
+    # Without ticks the same bar is ambiguous and the pessimistic bound binds,
+    # giving the OPPOSITE outcome to what actually happened.
+    bound = run(b, CFG, ZERO)[0][0]
+    assert bound.ambiguous_exit is True
+    assert bound.exit_reason == "stop"
+    assert bound.gross_r < 0
+    assert observed.net_r > bound.net_r      # truth is not either bound
+
+
+def test_tick_resolution_collapses_the_bracket_to_zero_width():
+    """Pessimistic and optimistic must coincide exactly under ticks."""
+    b = _one_minute_case()
+    tk = _ticks([102.3, 103.5, 104.52, 105.0, 102.0, 99.5, 99.0],
+                start="2024-01-02 09:04")
+    p = run(b, CFG, ZERO, ticks=tk, resolution="pessimistic")[0][0]
+    o = run(b, CFG, ZERO, ticks=tk, resolution="optimistic")[0][0]
+    assert p.exit_reason == o.exit_reason
+    assert o.net_r - p.net_r == 0.0, "bracket must have zero width under ticks"
+
+
+def test_ticks_drive_assumption_frac_to_zero_at_1m_at_scale():
+    """assumption_frac must be exactly 0.0 for 1m when ticks are supplied."""
+    base = random_walk(4_000, 777)
+    # Synthesize 4 ticks per bar tracing open -> high -> low -> close.
+    import pandas as pd
+    rows, stamps = [], []
+    for ts, r in base.iterrows():
+        for j, px in enumerate((r["open"], r["high"], r["low"], r["close"])):
+            rows.append(px)
+            stamps.append(ts + pd.Timedelta(seconds=15 * j))
+    p = np.asarray(rows, float)
+    tk = pd.DataFrame({"open": p, "high": p, "low": p, "close": p},
+                      index=pd.DatetimeIndex(stamps))
+
+    checked = 0
+    for polarity in ("green", "red"):
+        for cfg in grid(polarity):
+            if cfg.timeframe != "1m":
+                continue
+            trades, diag = run(base, cfg, CostModel(), ticks=tk)
+            assert diag["resolution_source"] == "ticks"
+            assert diag["observed_resolution"] is True
+            assert diag["assumption_frac"] == 0.0, (
+                f"{cfg.key}: assumption_frac={diag['assumption_frac']} under ticks"
+            )
+            # Bracket width must be exactly zero.
+            opt, _ = run(base, cfg, CostModel(), ticks=tk, resolution="optimistic")
+            if trades and opt:
+                lo = float(np.mean([t.net_r for t in trades]))
+                hi = float(np.mean([t.net_r for t in opt]))
+                assert hi - lo == 0.0, f"{cfg.key}: bracket width {hi - lo}"
+            checked += 1
+    assert checked == 36
+
+
+def test_absent_ticks_leaves_behaviour_unchanged():
+    """Ticks are opt-in. Without them, 1m is bounded exactly as before."""
+    b = _one_minute_case()
+    a = run(b, CFG, ZERO)
+    c = run(b, CFG, ZERO, ticks=None)
+    assert a[1]["resolution_source"] == "self"
+    assert a[1]["assumption_frac"] == c[1]["assumption_frac"] == 1.0
+    assert a[0][0].exit_reason == c[0][0].exit_reason == "stop"
