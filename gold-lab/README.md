@@ -11,7 +11,8 @@ quoted, because none exists.**
 
 ```
 three_breakout/ACCEPTANCE_CRITERIA.md   frozen pre-registration — read first
-  (+ Amendment 1: matched-geometry null replaces criterion 1's ">0")
+  (+ Amendment 1: matched-geometry null; + Amendment 2: criterion 1 needs BOTH
+     net_expectancy > 0 AND excess > 0, conjunctively)
 three_breakout/ADDENDUM_01_FILL_RESOLUTION.md   intrabar fill resolution
   (+ 01-A: 1m figures are bounds; 01-B: tick resolution collapses the bracket)
 goldlab/costs.py                        spread + commission model
@@ -23,7 +24,7 @@ goldlab/nullmodel.py                    matched-geometry null (Amendment 1)
 run_three_breakout.py                   phase-ordered protocol runner
 tests/test_execution.py                 engine verification (25 tests)
 tests/test_verification.py              golden master, sentinels, ticks (18)
-tests/test_nullmodel.py                 matched-geometry null (10 tests)
+tests/test_nullmodel.py                 matched-geometry null (11 tests)
 tests/synthetic.py                      seeded random walk, binomial helper
 ```
 
@@ -50,15 +51,24 @@ Cost overrides: `--spread-ticks`, `--commission`, `--tick-size`.
 
 ## Phase order is enforced in code
 
-1. BH-vs-spread diagnostic table, written **before** any grid runs.
-2. In-sample grid — 90 configs × 2 polarities, every metric gross **and** net.
-3. Nomination of exactly one config, from in-sample results only.
-4. OOS unlocked and evaluated **once**, for the nominated config only.
-5. `VERDICT.md`.
+1. Load data; measure the spread profile from `bid`/`ask`.
+2. **BH-vs-spread table**, then **STOP** — this is the default.
+3. In-sample grid — 90 configs × 2 polarities, every metric gross **and** net.
+4. Matched-geometry null, **survivors of phase 3 only**.
+5. Nomination of one config, OOS unlocked once, `VERDICT.md`.
 
-The out-of-sample block is not read before step 4. If no config clears the
-in-sample criteria, the run stops at step 3 with a REJECT and OOS is never
-touched — that is the intended outcome, not a failure of the run.
+`--stop-after` defaults to **2**. The diagnostic is seconds and usually
+decisive; the null is hours on a multi-year 1m history. Nothing proceeds past
+the table without an explicit `--stop-after 3/4/5`. It can never skip ahead.
+
+If phase 3 leaves zero survivors, phase 4 is skipped entirely and the run
+writes REJECT — on the smoke data that is 2.6s instead of 4m42s. The
+out-of-sample block is never read unless a config is nominated in phase 5.
+
+Computing the null only for survivors is sound rather than merely cheap, and
+only because of Amendment 2: with `net_expectancy > 0` restored as a conjunct,
+a config failing any phase-3 gate fails criterion 1 outright and no null result
+could change its outcome.
 
 ## Fill resolution
 
@@ -111,9 +121,29 @@ box-height distribution and within-block volatility clustering all survive;
 serial structure across blocks does not. Original timestamps are reused so the
 session-varying spread lands on the same hours.
 
-> Net expectancy must exceed the **97.5th percentile of its own matched null**,
-> in-sample **and** out-of-sample. `excess <= 0` is a REJECT regardless of raw
-> sign.
+> **Criterion 1 (Amendment 2, final).** Both, conjunctively, IS and OOS:
+> **(a)** `net_expectancy > 0` and **(b)** `excess = net_expectancy -
+> null_p97.5 > 0`. Failing either is a REJECT.
+
+Amendment 1 alone let a *negative* expectancy pass by clearing a more negative
+null. That was wrong: a config that merely loses less than its own scrambled
+null has shown its serial structure is worth something, but not that it is
+tradeable — money leaves the account either way. The two tests answer different
+questions. `> 0` asks does this make money after costs; `excess > 0` asks is
+that profit more than artifact and geometry alone. Only the conjunction is edge.
+
+The phase-2 table also reports, per timeframe and in both USD and ticks, the
+median and quartile box height against the **measured** round-trip cost, plus
+`cost_over_risk` (`c`), `k_min_cover_cost` and `req_winrate_uplift`.
+
+A single "minimum `target_k` to break even" does not exist, and the algebra
+shows why: on a fair market the gambler's-ruin win rate is `p = 1/(1+k)`, so
+net expectancy in R units is `p(k-c) + (1-p)(-1-c) = -c` — **independent of
+`k`**. No target multiple breaks even; `k` cancels. What an edge must do is beat
+the fair win rate by a factor of `1 + c`, which is also independent of `k`. So
+`req_winrate_uplift = 1 + c` is the honest headline, and `k_min_cover_cost = c`
+answers the narrower "is the target even bigger than the round trip" (`c > 1`
+means a full 1R target does not cover it).
 
 Reported per config: `null_mean`, `null_p975`, `null_excess`, `null_block_length`,
 `null_resamples`. The null runs on the real series only — running it on
@@ -121,7 +151,7 @@ synthetic data is not a substitute and its output is not a result.
 
 ## What the tests establish
 
-53 tests. That the engine implements the spec + Addendum 01 — box construction,
+54 tests. That the engine implements the spec + Addendum 01 — box construction,
 both OCO legs, S1/S2 stops, `target_k` scaling, expiry, one-position-at-a-time,
 red/green mirroring, sub-resolution above 1m, the losing-leg and stop-first
 tie-breaks, assumption accounting, and gap fills at the open including a

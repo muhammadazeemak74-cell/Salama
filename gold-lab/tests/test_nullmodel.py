@@ -121,24 +121,46 @@ def test_preregistered_minimum_resamples():
     assert nullmodel.NULL_PERCENTILE == 97.5
 
 
-def test_nomination_requires_clearing_the_null_not_merely_zero():
-    """Criterion 1 amended: raw sign is not sufficient and not necessary."""
-    import run_three_breakout as R
-
+def _row(**kw):
     base = {
         "polarity": "green", "net_n": 500, "passes_bonferroni_90": True,
         "net_profit_factor": 1.5, "net_recovery_ratio": 3.0,
         "net_longest_flat_frac": 0.1, "net_p_value": 1e-6,
     }
-    df = pd.DataFrame([
-        {**base, "config": "positive-but-fails-null",
-         "net_expectancy": 0.05, "null_excess": -0.01},
-        {**base, "config": "negative-but-clears-null",
-         "net_expectancy": -0.02, "null_excess": 0.03, "net_p_value": 1e-5},
-    ])
-    nom = R.nominate(df)
-    assert nom is not None
-    assert nom["config"] == "negative-but-clears-null"
+    return {**base, **kw}
 
-    only_failing = df.iloc[[0]]
-    assert R.nominate(only_failing) is None
+
+def test_nomination_needs_BOTH_conjuncts_of_criterion_1():
+    """Amendment 2: net_expectancy > 0 AND excess > 0. Neither alone."""
+    import run_three_breakout as R
+
+    positive_fails_null = _row(config="positive-but-fails-null",
+                               net_expectancy=0.05, null_excess=-0.01)
+    negative_clears_null = _row(config="negative-but-clears-null",
+                                net_expectancy=-0.02, null_excess=0.03)
+    passes_both = _row(config="passes-both",
+                       net_expectancy=0.04, null_excess=0.02, net_p_value=1e-4)
+
+    # (b) without (a): loses less than its own scrambled null. Not tradeable.
+    assert R.nominate(pd.DataFrame([negative_clears_null])) is None
+    # (a) without (b): profit indistinguishable from artifact.
+    assert R.nominate(pd.DataFrame([positive_fails_null])) is None
+    # Neither may be preferred over a config clearing both.
+    nom = R.nominate(pd.DataFrame([positive_fails_null, negative_clears_null,
+                                   passes_both]))
+    assert nom is not None and nom["config"] == "passes-both"
+
+
+def test_null_is_skipped_for_configs_already_rejected():
+    """Amendment 2 makes survivors-only null sound, not merely cheap."""
+    import run_three_breakout as R
+
+    df = pd.DataFrame([
+        _row(config="survivor", net_expectancy=0.04),
+        _row(config="negative", net_expectancy=-0.01),
+        _row(config="thin", net_expectancy=0.04, net_n=10),
+        _row(config="fails-bonferroni", net_expectancy=0.04,
+             passes_bonferroni_90=False),
+    ])
+    surv = R.phase3_survivors(df)
+    assert list(df.loc[surv, "config"]) == ["survivor"]

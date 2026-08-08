@@ -267,3 +267,63 @@ Per config, in `grid_net.csv` and in `VERDICT.md` for the nominated config:
   nomination, on the OOS block, for the nominated config only.
 - This amendment cannot rescue anything. It only ever raises or lowers a
   measured hurdle; it adds no filter, no parameter and no grid entry.
+
+---
+
+# Amendment 2 — criterion 1 requires BOTH tests, conjunctively
+
+**Added 2026-08-08. Pre-registered BEFORE any real data was loaded and before
+any real-data result was observed.** Amendment 1 is **not** edited; this
+amendment sits on top of it and narrows it. Everything else stands.
+
+## The rule
+
+> **Criterion 1 (final form).** Both must hold, conjunctively:
+>
+> **(a)** `net_expectancy > 0` — restored from the original criterion 1
+> **(b)** `excess = net_expectancy - null_p97.5 > 0` — Amendment 1
+>
+> In-sample **and** out-of-sample. Failing **either** is a REJECT.
+> The `n >= 200` trades requirement is unchanged.
+
+## Why
+
+Amendment 1 replaced `> 0` with the matched null, and explicitly permitted a
+negative net expectancy to pass by clearing a more negative null. That was
+wrong, and the error is worth naming precisely: a config that merely **loses
+less than its own scrambled null** has demonstrated that its serial structure is
+worth something, but it has not demonstrated that it is **tradeable**. You
+cannot trade "loses less than a shuffled version of itself". Money comes out of
+the account either way.
+
+The two tests answer different questions and both matter:
+
+- `net_expectancy > 0` asks: *does this make money after costs?*
+- `excess > 0` asks: *is that profit more than the artifact and geometry alone
+  would produce?*
+
+Passing (a) without (b) is artifact. Passing (b) without (a) is a moral victory.
+Only the conjunction is edge.
+
+This narrows the criterion; it cannot admit anything Amendment 1 excluded.
+
+## Consequence for the null's scope
+
+Amendment 1's scope limits said the null must be computed for **every**
+tradeable config, "not only those with positive raw expectancy", because a
+negative-expectancy config could still clear its null and excluding it would
+bias the grid. **Amendment 2 supersedes that specific paragraph**, and only that
+one: under the conjunction, a config with `net_expectancy <= 0` fails criterion
+1 on test (a) no matter what its null says, so computing its null cannot change
+any outcome.
+
+The null may therefore be computed **only for configs that survive every other
+gate**, which is what the phase order does. This is a compute saving, not a
+loosening: every config whose null is skipped has already been rejected on
+grounds that do not depend on the null.
+
+## Reporting
+
+Both figures are reported side by side for the nominated config, and the verdict
+names which of (a) or (b) failed when it rejects. A config that passes one and
+fails the other is reported as failing criterion 1 — not as a near miss.

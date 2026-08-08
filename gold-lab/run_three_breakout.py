@@ -66,21 +66,73 @@ def build_costs(args, base: pd.DataFrame) -> CostModel:
     )
 
 
-def phase1_bh_table(base: pd.DataFrame, costs: CostModel, ticks=None) -> pd.DataFrame:
-    """§8 - box height vs. the cost of trading it, per timeframe."""
+def phase2_bh_table(base: pd.DataFrame, costs: CostModel, ticks=None) -> pd.DataFrame:
+    """§8 - box height vs. the measured cost of trading it. The decisive table.
+
+    Reported per timeframe in BOTH units, next to the measured round-trip cost:
+
+        roundtrip = 2 x spread (adverse entry + adverse stop exit) + commission
+        c         = roundtrip / risk_unit,  risk_unit = median BH + tick buffer
+
+    `k_min_cover_cost` is the literal "how big must the target be before it even
+    pays the round trip": k such that k * risk == roundtrip, i.e. k = c. Above
+    c = 1 a full 1R target does not cover costs.
+
+    A single "minimum target_k to break even" does NOT exist, and the algebra
+    says why. On a fair market the gambler's-ruin win rate is p = 1/(1+k), so
+    net expectancy in R units is
+
+        E = p(k - c) + (1 - p)(-1 - c) = -c
+
+    — independent of k. No target multiple breaks even on a fair market; k
+    cancels. What a real edge must do instead is beat the fair win rate by a
+    multiplicative factor, and that factor is also independent of k:
+
+        p_required = (1 + c) / (1 + k)   vs   p_fair = 1 / (1 + k)
+        uplift     = p_required / p_fair = 1 + c
+
+    So `req_winrate_uplift` is the honest headline: the strategy must win
+    (1 + c) times more often than chance just to reach zero.
+    """
     rows = []
     for tf in gdata.TIMEFRAMES:
         bars = gdata.resample(base, tf)
-        # Box heights are polarity-independent in distribution; use green.
         _, diag = run(bars, Config("green", tf, 3, "S1", 1.0), costs, base_bars=base,
                       ticks=ticks)
-        avg_spread = float(
+        bh_ticks = np.asarray(diag["bh_ticks"], dtype=float)
+        if bh_ticks.size == 0:
+            continue
+
+        spread_t = float(
             np.mean([costs.spread_in_ticks(h) for h in range(24)])
             if costs.is_session_varying else costs.spread_in_ticks(12)
         )
-        row = {"timeframe": tf, "bars": len(bars)}
-        row.update(metrics.bh_distribution(diag["bh_ticks"], avg_spread))
+        tick = costs.tick_size
+        roundtrip_usd = 2.0 * spread_t * tick + costs.commission_price_units
+        med_t = float(np.median(bh_ticks))
+        risk_usd = med_t * tick + tick          # median BH + 1 tick buffer
+        c = roundtrip_usd / risk_usd if risk_usd > 0 else np.inf
+
+        row = {
+            "timeframe": tf, "bars": len(bars), "n_boxes": int(bh_ticks.size),
+            "bh_p25_usd": float(np.percentile(bh_ticks, 25)) * tick,
+            "bh_median_usd": med_t * tick,
+            "bh_p75_usd": float(np.percentile(bh_ticks, 75)) * tick,
+            "bh_p25_ticks": float(np.percentile(bh_ticks, 25)),
+            "bh_median_ticks": med_t,
+            "bh_p75_ticks": float(np.percentile(bh_ticks, 75)),
+            "spread_usd": spread_t * tick, "spread_ticks": spread_t,
+            "roundtrip_usd": roundtrip_usd, "roundtrip_ticks": roundtrip_usd / tick,
+            "risk_unit_usd": risk_usd,
+            "cost_over_risk": c,
+            "k_min_cover_cost": c,
+            "req_winrate_uplift": 1.0 + c,
+        }
+        for k in (1.0, 1.5, 2.0):
+            row[f"fair_wr_k{k:g}"] = 1.0 / (1.0 + k)
+            row[f"req_wr_k{k:g}"] = (1.0 + c) / (1.0 + k)
         rows.append(row)
+
     df = pd.DataFrame(rows)
     RESULTS.mkdir(parents=True, exist_ok=True)
     df.to_csv(RESULTS / "bh_vs_spread.csv", index=False)
@@ -152,7 +204,7 @@ def phase2_grid(bars_by_tf: dict, base: pd.DataFrame, costs: CostModel,
     return pd.DataFrame(rows)
 
 
-def phase2b_null(is_df: pd.DataFrame, bars: pd.DataFrame, costs: CostModel,
+def run_null(is_df: pd.DataFrame, bars: pd.DataFrame, costs: CostModel,
                  ticks, n_resamples: int) -> pd.DataFrame:
     """Amendment 1 — matched-geometry null, per config, on the REAL series.
 
@@ -163,14 +215,17 @@ def phase2b_null(is_df: pd.DataFrame, bars: pd.DataFrame, costs: CostModel,
     block = nullmodel.block_length_for(bars)
     rng = np.random.default_rng(20260808)
     print(f"  block length (Politis-White): {block:.2f} bars; "
-          f"{n_resamples} resamples x 180 configs")
+          f"{n_resamples} resamples x {len(is_df)} surviving configs")
 
-    samples: dict[str, list[float]] = {k: [] for k in is_df["config"]}
+    wanted = set(is_df["config"])
+    samples: dict[str, list[float]] = {k: [] for k in wanted}
     for r in range(n_resamples):
         rb = nullmodel.resample_bars(geom, block, rng)
         by_tf = {tf: gdata.resample(rb, tf) for tf in gdata.TIMEFRAMES}
         for polarity in ("green", "red"):
             for cfg in grid(polarity):
+                if cfg.key not in wanted:
+                    continue          # already rejected without the null
                 trades, _ = run(by_tf[cfg.timeframe], cfg, costs, base_bars=rb,
                                 ticks=None, resolution="pessimistic")
                 m = metrics.compute(np.array([t.net_r for t in trades]))
@@ -185,22 +240,45 @@ def phase2b_null(is_df: pd.DataFrame, bars: pd.DataFrame, costs: CostModel,
     return pd.DataFrame(rows)
 
 
-def nominate(is_df: pd.DataFrame) -> dict | None:
-    """Pick exactly one config from IS results. Criteria 1 (amended), 2 and 5.
+def write_grids(is_df: pd.DataFrame) -> None:
+    for polarity in ("green", "red"):
+        d = is_df[is_df["polarity"] == polarity]
+        out = RESULTS / f"three_{polarity}_breakout"
+        out.mkdir(parents=True, exist_ok=True)
+        d[[c for c in d.columns if not c.startswith("net_")]].to_csv(
+            out / "grid_gross.csv", index=False)
+        d[[c for c in d.columns if not c.startswith("gross_")]].to_csv(
+            out / "grid_net.csv", index=False)
 
-    Criterion 1 is the Amendment 1 form: net expectancy must exceed the 97.5th
-    percentile of its own matched-geometry null, not merely zero.
+
+def phase3_survivors(is_df: pd.DataFrame) -> pd.Series:
+    """Everything checkable WITHOUT the null.
+
+    Amendment 2 restores `net_expectancy > 0` as a conjunct of criterion 1, so
+    a config failing here fails outright and its null cannot change that. That
+    is what makes it sound to compute the null for survivors only.
     """
-    """Pick exactly one config from IS results. Criteria 1, 2 and 5 only."""
-    ok = is_df[
+    return (
         (is_df["polarity"] == "green")
         & (is_df["net_n"] >= MIN_TRADES)
-        & (is_df["null_excess"] > 0)          # Amendment 1 replaces "> 0"
-        & (is_df["passes_bonferroni_90"])
-        & (is_df["net_profit_factor"] > MIN_PROFIT_FACTOR)
+        & (is_df["net_expectancy"] > 0)                    # criterion 1(a)
+        & (is_df["passes_bonferroni_90"])                  # criterion 2
+        & (is_df["net_profit_factor"] > MIN_PROFIT_FACTOR) # criterion 5
         & (is_df["net_recovery_ratio"] >= MIN_RECOVERY_IS)
         & (is_df["net_longest_flat_frac"] <= MAX_FLAT_FRAC)
-    ]
+    )
+
+
+def nominate(is_df: pd.DataFrame) -> dict | None:
+    """Pick exactly one config from IS results. Criteria 1, 2 and 5.
+
+    Criterion 1 is the Amendment 2 conjunction: net expectancy must be BOTH
+    positive AND above the 97.5th percentile of its own matched-geometry null.
+    Passing (a) without (b) is artifact; passing (b) without (a) is a config
+    that merely loses less than its own scrambled null, which is not tradeable.
+    """
+    """Pick exactly one config from IS results. Criteria 1, 2 and 5 only."""
+    ok = is_df[phase3_survivors(is_df) & (is_df["null_excess"] > 0)]  # 1(a) AND 1(b)
     if ok.empty:
         return None
     # Lowest p-value wins; ties broken by net expectancy.
@@ -224,7 +302,11 @@ def main() -> int:
     ap.add_argument("--null-resamples", type=int, default=nullmodel.MIN_RESAMPLES,
                     help="matched-geometry null resamples per config "
                          f"(Amendment 1 requires >= {nullmodel.MIN_RESAMPLES})")
-    ap.add_argument("--stop-after", type=int, default=5, choices=[1, 2, 3, 4, 5])
+    ap.add_argument("--stop-after", type=int, default=2, choices=[1, 2, 3, 4, 5],
+                    help="DEFAULT 2: load+costs, then the BH-vs-spread table, "
+                         "then STOP. The diagnostic is cheap and usually "
+                         "decisive; the null is hours. Pass 3/4/5 explicitly to "
+                         "go further. It can never skip ahead.")
     args = ap.parse_args()
 
     base = gdata.load_bars(args.data)
@@ -243,14 +325,34 @@ def main() -> int:
 
     RESULTS.mkdir(parents=True, exist_ok=True)
 
-    # Phase 1 -----------------------------------------------------------
-    bh = phase1_bh_table(base, costs, ticks)
-    print("\n=== Phase 1: BH vs spread (ticks) ===")
-    print(bh.to_string(index=False))
+    # Phase 1: data + measured cost model (done above) --------------------
+    print("\n=== Phase 1: data loaded, cost model resolved ===")
     if args.stop_after == 1:
         return 0
 
-    # Phase 2 -----------------------------------------------------------
+    # Phase 2: the decisive diagnostic ------------------------------------
+    bh = phase2_bh_table(base, costs, ticks)
+    print("\n=== Phase 2: box height vs measured round-trip cost ===")
+    geo = ["timeframe", "n_boxes", "bh_p25_usd", "bh_median_usd", "bh_p75_usd",
+           "bh_median_ticks", "roundtrip_usd", "roundtrip_ticks"]
+    imp = ["timeframe", "cost_over_risk", "k_min_cover_cost",
+           "req_winrate_uplift", "req_wr_k1", "req_wr_k1.5", "req_wr_k2"]
+    print(bh[geo].to_string(index=False, float_format=lambda v: f"{v:,.3f}"))
+    print()
+    print(bh[imp].to_string(index=False, float_format=lambda v: f"{v:,.4f}"))
+    print("\n  cost_over_risk c = round-trip / (median BH + buffer)")
+    print("  a fair market yields net expectancy of exactly -c for EVERY k,")
+    print("  so no target multiple breaks even; an edge must beat the fair win")
+    print("  rate by a factor of (1 + c). k_min_cover_cost > 1 means even a")
+    print("  full 1R target does not cover the round trip.")
+
+    if args.stop_after <= 2:
+        print("\nSTOP after Phase 2 (default). Read the table above before "
+              "spending hours on the grid and null.")
+        print("Re-run with --stop-after 5 to continue.")
+        return 0
+
+    # Phase 3: in-sample grid ---------------------------------------------
     split = gdata.split_70_30(base)
     print(f"\nsplit: {split.describe()}")
     print("OOS is LOCKED until a config is nominated.")
@@ -260,47 +362,50 @@ def main() -> int:
               for p in ("green", "red")]
     is_df = pd.concat(frames, ignore_index=True)
 
-    for polarity in ("green", "red"):
-        d = is_df[is_df["polarity"] == polarity]
-        out = RESULTS / f"three_{polarity}_breakout"
-        out.mkdir(parents=True, exist_ok=True)
-        gross_cols = [c for c in d.columns if not c.startswith("net_")]
-        net_cols = [c for c in d.columns if not c.startswith("gross_")]
-        d[gross_cols].to_csv(out / "grid_gross.csv", index=False)
-        d[net_cols].to_csv(out / "grid_net.csv", index=False)
+    write_grids(is_df)
 
     n_untradeable = int(is_df["untradeable_evidence"].sum())
     n_assumed = int(is_df["ASSUMPTION_DEPENDENT"].sum())
-    print(f"\n=== Phase 2: IS grid ===")
+    print(f"\n=== Phase 3: IS grid ===")
     print(f"configs: {len(is_df)}  flagged n<{MIN_TRADES}: {n_untradeable}")
     print(f"flagged ASSUMPTION-DEPENDENT (>5% of trades resolved by "
           f"assumption): {n_assumed}")
-    if args.stop_after == 2:
+    surv_mask = phase3_survivors(is_df)
+    n_surv = int(surv_mask.sum())
+    print(f"survived every non-null gate: {n_surv}")
+    if args.stop_after == 3:
         return 0
 
-    # Phase 2b - matched-geometry null on the real series (Amendment 1) --
-    print(f"\n=== Phase 2b: matched-geometry null ===")
-    null_df = phase2b_null(is_df, split.is_bars, costs, ticks, args.null_resamples)
-    is_df = is_df.merge(null_df, on="config", how="left")
-    for polarity in ("green", "red"):
-        d = is_df[is_df["polarity"] == polarity]
-        out = RESULTS / f"three_{polarity}_breakout"
-        d[[c for c in d.columns if not c.startswith("gross_")]].to_csv(
-            out / "grid_net.csv", index=False)
-    print(f"configs clearing their null (excess > 0): "
-          f"{int((is_df['null_excess'] > 0).sum())} of {len(is_df)}")
+    # Phase 4: null, SURVIVORS ONLY ---------------------------------------
+    if n_surv == 0:
+        print("\n=== Phase 4: SKIPPED — zero survivors, no null to compute ===")
+        for col in ("null_mean", "null_p975", "null_excess", "null_resamples",
+                    "null_block_length"):
+            is_df[col] = np.nan
+        write_grids(is_df)
+        write_verdict(bh, is_df, None, None, costs, split)
+        print("VERDICT: REJECT (no config cleared the in-sample gates).")
+        return 0
 
-    # Phase 3 -----------------------------------------------------------
+    print(f"\n=== Phase 4: matched-geometry null, {n_surv} surviving configs ===")
+    null_df = run_null(is_df[surv_mask], split.is_bars, costs, ticks,
+                           args.null_resamples)
+    is_df = is_df.merge(null_df, on="config", how="left")
+    write_grids(is_df)
+    print(f"of those, clearing their null (excess > 0): "
+          f"{int((is_df['null_excess'] > 0).sum())}")
+    if args.stop_after == 4:
+        return 0
+
+    # Phase 5: nominate, unlock OOS, verdict -------------------------------
     nom = nominate(is_df)
     if nom is None:
         write_verdict(bh, is_df, None, None, costs, split)
         print("\nNo config satisfies the IS criteria. VERDICT: REJECT.")
         return 0
-    print(f"\n=== Phase 3: nominated {nom['config']} (p={nom['net_p_value']:.3g}) ===")
-    if args.stop_after == 3:
-        return 0
+    print(f"\n=== Phase 5: nominated {nom['config']} (p={nom['net_p_value']:.3g}) ===")
 
-    # Phase 4 - OOS unlocked, evaluated once -----------------------------
+    # OOS unlocked, evaluated once ----------------------------------------
     cfg = Config(nom["polarity"], nom["timeframe"], int(nom["n_expiry"]),
                  nom["stop"], float(nom["target_k"]))
     oos_bars = gdata.resample(split.oos_bars, cfg.timeframe)
@@ -372,11 +477,12 @@ def write_verdict(bh, is_df, nom, oos, costs, split) -> None:
     if nom is None:
         lines += [
             "**REJECT.**", "",
-            "No in-sample config satisfied criteria 1 (amended), 2 and 5 "
-            "simultaneously: n >= 200, net expectancy above its own "
-            "matched-geometry null 97.5th percentile, Bonferroni p < 5.56e-4, "
-            "net PF > 1.15, recovery >= 2.0, flat <= 25%. No config was "
-            "nominated, so the OOS block was never unlocked and remains clean.",
+            "No in-sample config satisfied criteria 1, 2 and 5 simultaneously: "
+            "n >= 200, net expectancy BOTH > 0 and above its own "
+            "matched-geometry null 97.5th percentile (Amendment 2), Bonferroni "
+            "p < 5.56e-4, net PF > 1.15, recovery >= 2.0, flat <= 25%. No "
+            "config was nominated, so the OOS block was never unlocked and "
+            "remains clean.",
         ]
     else:
         green = is_df[(is_df["polarity"] == "green") & (is_df["net_n"] >= MIN_TRADES)]
@@ -434,14 +540,16 @@ def write_verdict(bh, is_df, nom, oos, costs, split) -> None:
             ]
         lines.append("")
         fails = []
+        if not (nom["net_expectancy"] > 0):
+            fails.append("1(a) IS (net expectancy not > 0)")
         if not (nom["null_excess"] > 0):
-            fails.append("1 amended (IS net expectancy does not exceed its "
+            fails.append("1(b) IS (net expectancy does not exceed its "
                          "matched-null 97.5th percentile)")
+        if not (oos["net"].expectancy > 0):
+            fails.append("1(a) OOS / criterion 4 (OOS net expectancy not > 0)")
         if not (oos["null"].excess > 0):
-            fails.append("4 + 1 amended (OOS net expectancy does not exceed its "
+            fails.append("1(b) OOS (OOS net expectancy does not exceed its "
                          "matched-null 97.5th percentile)")
-        elif not (oos["net"].expectancy > 0):
-            fails.append("4 (OOS net expectancy not > 0)")
         if not (oos["net"].profit_factor > MIN_PROFIT_FACTOR):
             fails.append("5 (OOS net profit factor <= 1.15)")
         if not (oos["net"].recovery_ratio >= MIN_RECOVERY_OOS):
