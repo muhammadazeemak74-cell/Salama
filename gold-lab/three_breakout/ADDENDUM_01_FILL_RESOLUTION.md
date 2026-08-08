@@ -113,3 +113,62 @@ way** — it removes an adverse assumption, so some configs improve — while th
 1m change should move results **down**, since pessimistic-by-outcome is
 strictly more adverse than the bar-direction heuristic. If 1m improves after
 this change, that is a bug, not an edge, and must be investigated as one.
+
+---
+
+# Amendment 01-A — what the 1m numbers may be called
+
+**Added 2026-08-08, after the verification pass, before any real data.**
+**Labeling only. No acceptance criterion, threshold, grid entry or binding rule
+is changed by this section.** Pessimistic still binds; the sensitivity delta
+still cannot rescue a failing config; the OOS lock is untouched.
+
+## The 1m tie-break is a bound, not a simulation
+
+§1 resolves 1m ambiguity by "resolve both legs, take the worse net R". That
+phrasing invites a reading it does not deserve. Choosing the leg *because* its
+outcome is worse is not a causal model of fill order — it selects on the
+outcome, which the real market cannot see. Actual fill order depends on the
+path within the minute and is **independent of which leg turns out worse**.
+
+So the pessimistic rule is a **worst-case bound**, arrived at with hindsight of
+the outcome, not an estimate of what would have happened. The correct language:
+
+| Quantity | What it is |
+|---|---|
+| 1m PESSIMISTIC net expectancy | **LOWER bound** on net expectancy |
+| 1m OPTIMISTIC net expectancy | **UPPER bound** on net expectancy |
+| true 1m net expectancy | **bracketed** by the two — not estimated by either |
+
+The `net_expectancy_optimistic_delta` column is therefore the **width of the
+bracket**, not an error bar and not a sensitivity in the usual sense. A wide
+bracket means the 1m figure is largely a statement about the tie-break
+convention. Timeframes >= 5m are not bracketed in this way: their sequence is
+observed against the 1m base series, so their numbers are estimates.
+
+Permitted: "1m net expectancy is at least X (pessimistic bound)". Forbidden:
+"1m net expectancy is X", for any 1m figure.
+
+## Gross figures at 1m carry a resolution artifact
+
+The verification pass established that on a driftless random walk — a series
+with no edge by construction — GROSS expectancy is positive far more often than
+chance, most severely at 1m. Root cause: the fill bar's extremes both trigger
+the entry and resolve the exit, and OHLC cannot order those two events. The
+artifact scales with (resolution bar range) / (box height), so it is largest
+exactly where the box is smallest.
+
+Controls run: the exit machinery is exactly fair from unconditional entries,
+and the vectorized and reference search paths agree trade-for-trade, so this is
+**not** cross-bar lookahead. It is an intrabar-resolution limit of bar data.
+
+Consequences, all labeling:
+
+- Gross figures at 1m are **upper-biased and not to be quoted as evidence**,
+  which is consistent with the frozen spec already making net the headline.
+- The bias did not put a single config into net-positive territory on any
+  synthetic seed, so it does not threaten the acceptance criteria — but a 1m
+  config that clears them must have this stated next to it.
+- This is one more reason the §8 BH-vs-spread table is the decisive diagnostic:
+  the regime where the artifact is worst is the same regime where the box is
+  too small to clear costs.

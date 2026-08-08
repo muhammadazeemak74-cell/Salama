@@ -160,6 +160,53 @@ def _first_touch(s: _Series, start: int, stop_price: float, target: float,
     return s.n, s.n
 
 
+def _search_levels_reference(s: _Series, start: int, end: int, kind: str,
+                             level_a: float, level_b: float, side: int = 1):
+    """Naive scalar scan — the pre-vectorization implementation.
+
+    REFERENCE ONLY. Never used on a production path. Retained permanently as
+    the golden master for `test_vectorized_search_matches_reference`, so any
+    future optimisation of `_first_trigger` / `_first_touch` must still
+    reproduce it trade-for-trade. Do not "fix" this to match the fast path —
+    if they disagree, the fast path is wrong until proven otherwise.
+
+    Returns (idx_a, idx_b), using `end` for "not touched first". Only the
+    earlier index is meaningful; a tie (idx_a == idx_b) is the ambiguity the
+    callers resolve by tie-break.
+    """
+    for k in range(start, end):
+        if kind == "trigger":
+            a = s.h[k] >= level_a          # buy stop
+            b = s.l[k] <= level_b          # sell stop
+        elif side == 1:
+            a = s.l[k] <= level_a          # long stop-loss
+            b = s.h[k] >= level_b          # long target
+        else:
+            a = s.h[k] >= level_a          # short stop-loss
+            b = s.l[k] <= level_b          # short target
+        if a or b:
+            return (k if a else end), (k if b else end)
+    return end, end
+
+
+def _first_trigger_ref(s: _Series, lo: int, hi: int, buy: float, sell: float):
+    if lo >= hi:
+        return hi, hi
+    return _search_levels_reference(s, lo, hi, "trigger", buy, sell)
+
+
+def _first_touch_ref(s: _Series, start: int, stop_price: float, target: float,
+                     side: int):
+    return _search_levels_reference(s, start, s.n, "exit", stop_price, target, side)
+
+
+# Search backends. "vectorized" is production; "reference" is the golden master.
+SEARCH_BACKENDS = {
+    "vectorized": (_first_trigger, _first_touch),
+    "reference": (_first_trigger_ref, _first_touch_ref),
+}
+
+
 def _pattern_end(o: np.ndarray, c: np.ndarray, i: int, polarity: str) -> bool:
     if polarity == "green":
         return bool(c[i - 2] > o[i - 2] and c[i - 1] > o[i - 1] and c[i] > o[i])
@@ -168,7 +215,7 @@ def _pattern_end(o: np.ndarray, c: np.ndarray, i: int, polarity: str) -> bool:
 
 def _build(side: int, fill_rs: int, trig: float, box_high: float, box_low: float,
            bh: float, cfg: Config, costs: CostModel, s: _Series,
-           pessimistic: bool, ambiguous_entry: bool) -> Trade | None:
+           pessimistic: bool, ambiguous_entry: bool, touch=None) -> Trade | None:
     """Resolve one candidate leg all the way to its exit."""
     if cfg.stop == "S1":
         stop_price = box_low if side == 1 else box_high
@@ -185,7 +232,8 @@ def _build(side: int, fill_rs: int, trig: float, box_high: float, box_low: float
     gapped_entry = (o0 >= trig) if side == 1 else (o0 <= trig)
     entry_raw = o0 if gapped_entry else trig
 
-    i_stop, i_tgt = _first_touch(s, fill_rs, stop_price, target, side)
+    touch = touch or _first_touch
+    i_stop, i_tgt = touch(s, fill_rs, stop_price, target, side)
     ambiguous_exit = False
 
     if i_stop == s.n and i_tgt == s.n:
@@ -244,10 +292,19 @@ def run(
     base_bars: pd.DataFrame | None = None,
     resolution: str = "pessimistic",
     tick_buffer_ticks: float = 1.0,
+    search: str = "vectorized",
 ) -> tuple[list[Trade], dict]:
-    """Walk the bars once and return (trades, diagnostics)."""
+    """Walk the bars once and return (trades, diagnostics).
+
+    `search` selects the level-search backend. "vectorized" is production;
+    "reference" is the naive golden master and exists only so tests can prove
+    the two agree trade-for-trade.
+    """
     if resolution not in RESOLUTIONS:
         raise ValueError(f"bad resolution {resolution!r}")
+    if search not in SEARCH_BACKENDS:
+        raise ValueError(f"bad search backend {search!r}")
+    trigger_fn, touch_fn = SEARCH_BACKENDS[search]
     pessimistic = resolution == "pessimistic"
 
     empty = {"signals": 0, "fills": 0, "expired": 0, "bh_ticks": [],
@@ -290,7 +347,7 @@ def run(
         # Order window: timeframe bars i+1 .. i+N, mapped into the series.
         last_tf = min(i + cfg.n_expiry, n_tf - 1)
         w_lo, w_hi = int(s.start[i + 1]) if i + 1 < n_tf else s.n, int(s.end[last_tf])
-        ib, is_ = _first_trigger(s, w_lo, min(w_hi, s.n), buy_trig, sell_trig)
+        ib, is_ = trigger_fn(s, w_lo, min(w_hi, s.n), buy_trig, sell_trig)
 
         if ib == is_ and ib >= min(w_hi, s.n):
             expired += 1
@@ -304,9 +361,9 @@ def run(
             cands = [
                 t for t in (
                     _build(1, ib, buy_trig, box_high, box_low, bh, cfg, costs, s,
-                           pessimistic, True),
+                           pessimistic, True, touch_fn),
                     _build(-1, is_, sell_trig, box_high, box_low, bh, cfg, costs, s,
-                           pessimistic, True),
+                           pessimistic, True, touch_fn),
                 ) if t is not None
             ]
             if not cands:
@@ -318,7 +375,7 @@ def run(
             fill_rs = ib if side == 1 else is_
             trig = buy_trig if side == 1 else sell_trig
             trade = _build(side, fill_rs, trig, box_high, box_low, bh, cfg, costs, s,
-                           pessimistic, False)
+                           pessimistic, False, touch_fn)
             if trade is None:
                 i += 1
                 continue

@@ -303,11 +303,23 @@ def write_verdict(bh, is_df, nom, oos, costs, split) -> None:
                 f"were settled by tie-break rather than observed sequence. The "
                 f"result is partly a statement about the resolution convention."
             )
-        if nom["timeframe"] == "1m" and np.isfinite(nom.get("net_expectancy_optimistic_delta", np.nan)):
-            lines.append(
-                f"- Tie-break sensitivity (non-binding): optimistic resolution moves "
-                f"net expectancy by {nom['net_expectancy_optimistic_delta']:+.4f}R"
-            )
+        if nom["timeframe"] == "1m":
+            lo = nom["net_expectancy"]
+            hi = nom.get("net_expectancy_optimistic", np.nan)
+            lines += [
+                "",
+                "> **1m figures are BOUNDS, not estimates** (Addendum 01-A). The "
+                "pessimistic tie-break selects the leg whose outcome is worse, "
+                "which the market cannot see, so it bounds rather than simulates "
+                "fill order.",
+                f"> - LOWER bound (pessimistic, binding): {lo:+.4f}R",
+                f"> - UPPER bound (optimistic, non-binding): {hi:+.4f}R"
+                if np.isfinite(hi) else "> - UPPER bound: not computed",
+                f"> - true value is bracketed by these, estimated by neither; "
+                f"bracket width {hi - lo:+.4f}R" if np.isfinite(hi) else "",
+                "> Gross figures at 1m additionally carry an upward "
+                "intrabar-resolution artifact and are not evidence.",
+            ]
         lines.append("")
         fails = []
         if not (oos["net"].expectancy > 0):
