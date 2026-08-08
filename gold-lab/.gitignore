@@ -1,0 +1,8 @@
+# Generated results are never committed: they are only meaningful alongside the
+# exact data + cost model that produced them, and a stale CSV in git is a
+# standing invitation to quote a number whose provenance nobody can check.
+results/*
+!results/.gitkeep
+data/
+*.pyc
+__pycache__/
