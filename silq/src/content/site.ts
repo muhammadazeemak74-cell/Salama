@@ -45,3 +45,36 @@ export const SITE = {
 } as const;
 
 export const WHATSAPP_BASE = `https://wa.me/${WHATSAPP_NUMBER}`;
+
+export type TrustStat = {
+  /**
+   * null means "we cannot evidence this yet" and the stat is not rendered.
+   * REAL FIGURES ONLY. A fabricated review score or client count is a legal
+   * exposure for a UAE trade-licensed business — the UAE Consumer Protection
+   * Law and Google's review policies both treat invented ratings as
+   * misrepresentation, and a trade licence makes the trader personally
+   * accountable for it. An empty trust bar costs nothing; an invented one can
+   * cost the licence. Fill these in only from records you could produce on
+   * request.
+   */
+  value: number | null;
+  suffix?: string;
+  decimals?: number;
+  label: string;
+};
+
+/**
+ * The trust bar renders only the stats that have a value, and disappears
+ * entirely when none do. Populate them as the evidence exists — there is no
+ * need to wait for all four.
+ *
+ * "Areas covered" is the one that is safe to switch on immediately: it is
+ * simply AREAS.length from src/content/areas.ts, so it is verifiable by
+ * inspection rather than a claim about the business.
+ */
+export const TRUST_STATS: TrustStat[] = [
+  { value: null, label: "Years behind the chair" },
+  { value: null, suffix: "+", label: "Appointments at home" },
+  { value: null, label: "Dubai areas covered" },
+  { value: null, decimals: 1, label: "Average client rating" },
+];

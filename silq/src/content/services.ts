@@ -48,7 +48,7 @@ export const SERVICES: Service[] = [
       "Dry-cut assessment first, then a precision cut finished to the shape you will style yourself. We work with your growth pattern and density rather than against them. Includes a wash and blow-dry at your basin or ours.",
     duration: "1 – 1.5 hrs",
     priceFrom: 250,
-    image: "service-cutting",
+    image: "svc-cutting",
     page: {
       title: "Haircut at Home in Dubai | Senior Stylists | SILQ",
       description:
@@ -107,7 +107,7 @@ export const SERVICES: Service[] = [
       "Root touch-ups, full colour, grey coverage and colour correction, mixed on site after we have seen your hair in daylight. We patch test, we tell you what is achievable in one visit, and we never promise a five-level lift over lunch.",
     duration: "2 – 4 hrs",
     priceFrom: 450,
-    image: "service-colouring",
+    image: "svc-colouring",
     page: {
       title: "Hair Colouring at Home in Dubai | Colour Specialists | SILQ",
       description:
@@ -166,7 +166,7 @@ export const SERVICES: Service[] = [
       "Freehand balayage, foiled highlights, fine babylights and ombré, all with bond protection through the lightener. Placement is mapped to your parting and face shape so the grow-out stays wearable for months rather than weeks.",
     duration: "3 – 5 hrs",
     priceFrom: 550,
-    image: "service-balayage",
+    image: "svc-highlights",
     page: {
       title: "Balayage & Highlights at Home in Dubai | SILQ",
       description:
@@ -226,7 +226,7 @@ export const SERVICES: Service[] = [
       "Bond repair, deep conditioning, protein-moisture rebalancing and scalp treatments. We assess porosity and elasticity first, because protein on hair that needs moisture makes it worse, and the two failures look almost identical.",
     duration: "45 mins – 1.5 hrs",
     priceFrom: 200,
-    image: "service-treatments",
+    image: "svc-treatment",
     page: {
       title: "Hair Treatments at Home in Dubai | Bond Repair & Deep Conditioning | SILQ",
       description:
@@ -285,7 +285,7 @@ export const SERVICES: Service[] = [
       "Keratin and protein smoothing to cut frizz, reduce drying time and make hair manageable in humidity. Applied section by section and sealed with a flat iron, with formaldehyde-free options for anyone who wants them.",
     duration: "3 – 5 hrs",
     priceFrom: 750,
-    image: "service-keratin",
+    image: "svc-keratin",
     page: {
       title: "Keratin Treatment at Home in Dubai | Frizz Smoothing | SILQ",
       description:
@@ -350,7 +350,7 @@ export const SERVICES: Service[] = [
       "Hair botox fills and plumps damaged strands for body and gloss without relaxing the curl. Hair spa is a slower ritual — steam, massage, deep mask — for scalp health and stressed lengths. Neither changes your natural texture.",
     duration: "1.5 – 2.5 hrs",
     priceFrom: 250,
-    image: "service-botox",
+    image: "svc-botox-spa",
     page: {
       title: "Hair Botox & Hair Spa at Home in Dubai | SILQ",
       description:
@@ -409,7 +409,7 @@ export const SERVICES: Service[] = [
       "Blow-dries, occasion updos, bridal hair and old-Hollywood waves, built to survive the drive and the evening. We work to your dress, your neckline and how the room will be lit, and we can start early enough for a morning ceremony.",
     duration: "45 mins – 2.5 hrs",
     priceFrom: 180,
-    image: "service-styling",
+    image: "svc-styling",
     page: {
       title: "Hair Styling, Updos & Bridal Hair at Home in Dubai | SILQ",
       description:
@@ -468,7 +468,7 @@ export const SERVICES: Service[] = [
       "Precise cotton-thread shaping for brows, upper lip and face, mapped to your bone structure rather than to a trend. Added to any hair appointment for a few extra minutes, or booked on its own.",
     duration: "15 – 30 mins",
     priceFrom: 40,
-    image: "service-threading",
+    image: "svc-threading",
     page: {
       title: "Eyebrow Threading at Home in Dubai | SILQ",
       description:

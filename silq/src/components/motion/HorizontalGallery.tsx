@@ -68,6 +68,10 @@ export function HorizontalGallery({ label }: { label: string }) {
               blurDataURL={image.blurDataURL}
               className="object-cover"
             />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-champagne opacity-[0.08] mix-blend-multiply"
+            />
           </figure>
         ))}
       </div>
@@ -97,6 +101,11 @@ export function HorizontalGallery({ label }: { label: string }) {
                 placeholder="blur"
                 blurDataURL={image.blurDataURL}
                 className="object-cover"
+              />
+              {/* The palette wins over the photography, not the other way round. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-champagne opacity-[0.08] mix-blend-multiply"
               />
               <figcaption className="pointer-events-none absolute -bottom-7 left-0 text-[0.6875rem] uppercase tracking-[0.24em] text-ash tnum">
                 {String(index + 1).padStart(2, "0")}

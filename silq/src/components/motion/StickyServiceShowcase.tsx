@@ -78,6 +78,10 @@ export function StickyServiceShowcase({ services }: { services: Service[] }) {
                   blurDataURL={image.blurDataURL}
                   className="object-cover"
                 />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-champagne opacity-[0.08] mix-blend-multiply"
+              />
               </div>
               <div className="pt-10">
                 <ServiceBlock service={service} index={index} />
@@ -146,6 +150,11 @@ function ShowcaseImage({
           placeholder="blur"
           blurDataURL={image.blurDataURL}
           className="object-cover"
+        />
+        {/* The palette wins over the photography, not the other way round. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-champagne opacity-[0.08] mix-blend-multiply"
         />
       </motion.div>
     </motion.div>

@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
- * Generates a gradient placeholder for every slot in the image manifest, at the
- * exact dimensions the manifest declares, so the site builds and reads as
- * intentional before any real photography exists.
+ * Fallback artwork for any slot that has no photograph yet.
  *
- * It also writes src/content/image-blur.ts — the base64 blur-up data URLs that
- * next/image uses. Re-run this after dropping in real photos so the blur data
- * matches the new files:
+ *   npm run images:placeholders
  *
- *   npm run placeholders
+ * This exists so the site always builds and always looks deliberate, even
+ * before `npm run images` has run against Pexels. It writes a quiet warm
+ * gradient at the slot's exact dimensions — no captions, no slot names, no
+ * dimension labels. A placeholder that announces itself is worse than one that
+ * simply reads as a colour field.
  *
- * Existing files are left alone unless --force is passed, so real photography is
- * never overwritten by a placeholder.
+ * Existing files are never overwritten unless --force is passed, so it can be
+ * run at any time without touching real photography.
+ *
+ * DELETE THIS SCRIPT once every slot has a real photograph. It is scaffolding,
+ * not part of the finished site.
  */
 
 import { mkdir, writeFile, readFile, access } from "node:fs/promises";
@@ -23,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const OUT_DIR = join(ROOT, "public", "images");
 const APP_DIR = join(ROOT, "src", "app");
-const BLUR_FILE = join(ROOT, "src", "content", "image-blur.ts");
+const BLUR_FILE = join(ROOT, "src", "content", "blur-data.ts");
 
 const FORCE = process.argv.includes("--force");
 
@@ -32,41 +35,30 @@ const PALETTE = {
   ink: "#14110F",
   clay: "#9A7B62",
   champagne: "#D8C3A5",
-  ash: "#6E6862",
   sable: "#221D1A",
 };
 
 /** Curated pairs only — the placeholders should still look like one brand. */
 const GRADIENTS = [
-  { from: PALETTE.champagne, to: PALETTE.clay, ink: PALETTE.bone },
-  { from: PALETTE.clay, to: PALETTE.sable, ink: PALETTE.bone },
-  { from: PALETTE.bone, to: PALETTE.champagne, ink: PALETTE.sable },
-  { from: PALETTE.sable, to: PALETTE.clay, ink: PALETTE.champagne },
-  { from: PALETTE.champagne, to: PALETTE.bone, ink: PALETTE.clay },
-  { from: PALETTE.ink, to: PALETTE.clay, ink: PALETTE.champagne },
+  { from: PALETTE.champagne, to: PALETTE.clay, line: PALETTE.bone },
+  { from: PALETTE.clay, to: PALETTE.sable, line: PALETTE.bone },
+  { from: PALETTE.bone, to: PALETTE.champagne, line: PALETTE.sable },
+  { from: PALETTE.sable, to: PALETTE.clay, line: PALETTE.champagne },
+  { from: PALETTE.champagne, to: PALETTE.bone, line: PALETTE.clay },
+  { from: PALETTE.ink, to: PALETTE.clay, line: PALETTE.champagne },
 ];
 
 /** Stable per-slot choice so regenerating never reshuffles the set. */
 function hash(value) {
   let h = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    h = (h * 31 + value.charCodeAt(i)) >>> 0;
-  }
+  for (let i = 0; i < value.length; i += 1) h = (h * 31 + value.charCodeAt(i)) >>> 0;
   return h;
-}
-
-function escapeXml(value) {
-  return value.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 }
 
 function placeholderSvg(slot, width, height) {
   const g = GRADIENTS[hash(slot) % GRADIENTS.length];
   const min = Math.min(width, height);
-  const label = Math.max(11, Math.round(min * 0.026));
-  const meta = Math.max(9, Math.round(min * 0.016));
-  const mark = Math.max(10, Math.round(min * 0.019));
   const inset = Math.round(min * 0.045);
-  // Bloom sits off-centre so the flat colour never reads as a broken image.
   const bloomX = width * 0.68;
   const bloomY = height * 0.28;
   const bloomR = min * 0.75;
@@ -85,15 +77,7 @@ function placeholderSvg(slot, width, height) {
   <rect width="${width}" height="${height}" fill="url(#base)"/>
   <rect width="${width}" height="${height}" fill="url(#bloom)"/>
   <rect x="${inset}" y="${inset}" width="${width - inset * 2}" height="${height - inset * 2}"
-        fill="none" stroke="${g.ink}" stroke-opacity="0.28" stroke-width="1"/>
-  <text x="${inset * 1.6}" y="${inset * 2.1}" fill="${g.ink}" fill-opacity="0.72"
-        font-family="Georgia, 'DejaVu Serif', serif" font-size="${mark}" letter-spacing="${mark * 0.42}">SILQ</text>
-  <text x="50%" y="50%" text-anchor="middle" fill="${g.ink}" fill-opacity="0.85"
-        font-family="'DejaVu Sans', Helvetica, sans-serif" font-size="${label}"
-        letter-spacing="${label * 0.28}">${escapeXml(slot.toUpperCase())}</text>
-  <text x="50%" y="${height / 2 + label * 2.4}" text-anchor="middle" fill="${g.ink}" fill-opacity="0.5"
-        font-family="'DejaVu Sans', Helvetica, sans-serif" font-size="${meta}"
-        letter-spacing="${meta * 0.24}">${width} &#215; ${height}</text>
+        fill="none" stroke="${g.line}" stroke-opacity="0.22" stroke-width="1"/>
 </svg>`);
 }
 
@@ -125,25 +109,21 @@ async function exists(path) {
 /** Reads the manifest out of the TypeScript source without needing a compiler. */
 async function readManifest() {
   const source = await readFile(join(ROOT, "src", "content", "images.ts"), "utf8");
-  const body = source.slice(
-    source.indexOf("IMAGE_MANIFEST: Record<ImageSlot, ImageSpec> = {"),
-  );
-  const entries = [];
-  // Keys are quoted only when they contain a hyphen, so both forms must match.
+  const body = source.slice(source.indexOf("IMAGE_MANIFEST: Record<ImageSlot, ImageSpec> = {"));
   const re = /"?([a-z0-9-]+)"?:\s*\{\s*width:\s*(\d+),\s*height:\s*(\d+),/g;
+  const entries = [];
   let match;
   while ((match = re.exec(body)) !== null) {
     entries.push({ slot: match[1], width: Number(match[2]), height: Number(match[3]) });
   }
-  if (entries.length === 0) {
-    throw new Error("No slots parsed from src/content/images.ts");
-  }
+  if (entries.length === 0) throw new Error("No slots parsed from src/content/images.ts");
   return entries;
 }
 
-async function blurDataUrl(buffer) {
-  const tiny = await sharp(buffer)
-    .resize(16, 16, { fit: "inside" })
+async function blurDataUrl(file) {
+  const tiny = await sharp(await readFile(file))
+    .resize(20, 20, { fit: "inside" })
+    .blur(1)
     .jpeg({ quality: 45 })
     .toBuffer();
   return `data:image/jpeg;base64,${tiny.toString("base64")}`;
@@ -157,39 +137,38 @@ async function main() {
   let kept = 0;
 
   for (const { slot, width, height } of slots) {
-    const file = join(OUT_DIR, `${slot}.jpg`);
-    const already = await exists(file);
+    const file = join(OUT_DIR, `${slot}.webp`);
 
-    if (!already || FORCE) {
-      const buffer = await sharp(placeholderSvg(slot, width, height))
-        .jpeg({ quality: 82, mozjpeg: true })
-        .toBuffer();
-      await writeFile(file, buffer);
+    if (!(await exists(file)) || FORCE) {
+      await sharp(placeholderSvg(slot, width, height))
+        .webp({ quality: 82 })
+        .toFile(file);
       written += 1;
     } else {
       kept += 1;
     }
 
-    const current = await readFile(file);
-    const meta = await sharp(current).metadata();
+    const meta = await sharp(await readFile(file)).metadata();
     if (meta.width !== width || meta.height !== height) {
-      console.warn(
-        `  ! ${slot}.jpg is ${meta.width}x${meta.height}, manifest expects ${width}x${height}`,
-      );
+      console.warn(`  ! ${slot}.webp is ${meta.width}x${meta.height}, manifest expects ${width}x${height}`);
     }
-    blur[slot] = await blurDataUrl(current);
+    blur[slot] = await blurDataUrl(file);
   }
 
-  const header = `// GENERATED FILE — do not edit by hand.
-// Run \`npm run placeholders\` to regenerate after changing any image.
-import type { ImageSlot } from "./images";
-
-export const IMAGE_BLUR: Record<ImageSlot, string> = {
-`;
   const rows = Object.entries(blur)
     .map(([slot, data]) => `  "${slot}": "${data}",`)
     .join("\n");
-  await writeFile(BLUR_FILE, `${header}${rows}\n};\n`);
+  await writeFile(
+    BLUR_FILE,
+    `// GENERATED FILE — do not edit by hand.
+// Run \`npm run images:blur\` to regenerate after replacing any image.
+import type { ImageSlot } from "./images";
+
+export const IMAGE_BLUR: Record<ImageSlot, string> = {
+${rows}
+};
+`,
+  );
 
   for (const [name, size] of [
     ["icon.png", 512],
@@ -202,7 +181,7 @@ export const IMAGE_BLUR: Record<ImageSlot, string> = {
   }
 
   console.log(
-    `placeholders: ${written} generated, ${kept} existing kept, ${slots.length} blur entries written`,
+    `placeholders: ${written} generated, ${kept} real images left alone, ${slots.length} blur entries written`,
   );
 }
 

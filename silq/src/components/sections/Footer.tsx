@@ -70,17 +70,22 @@ export function Footer() {
         </div>
 
         <div className="hairline mt-20 flex flex-col gap-4 pt-8 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-1 text-[0.8125rem] text-bone/45">
+          <div className="space-y-1 text-[0.8125rem] text-bone/60">
             {FOOTER.legal.map((line) => (
-              <p key={line} className="text-bone/45">
+              <p key={line} className="text-bone/60">
                 {line}
               </p>
             ))}
-            <p className="max-w-lg pt-2 text-bone/35">{FOOTER.disclaimer}</p>
+            <p className="max-w-lg pt-2 text-bone/55">{FOOTER.disclaimer}</p>
           </div>
-          <p className="shrink-0 text-[0.8125rem] text-bone/45">
-            &copy; {year} {SITE.legalName}
-          </p>
+          <div className="flex shrink-0 flex-col items-start gap-2 text-[0.8125rem] text-bone/60 md:items-end">
+            <Link href="/credits" className="link-draw text-bone/70 hover:text-bone">
+              Photography credits
+            </Link>
+            <p className="text-bone/60">
+              &copy; {year} {SITE.legalName}
+            </p>
+          </div>
         </div>
       </div>
     </footer>

@@ -9,6 +9,10 @@ yarn-debug.log*
 yarn-error.log*
 .env*
 !.env.example
+!.env.local.example
+
+# Build-time Pexels key. Never commit this.
+.env.local
 .vercel
 *.tsbuildinfo
 next-env.d.ts

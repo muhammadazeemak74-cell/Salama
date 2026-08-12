@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "placeholders": "node scripts/generate-placeholders.mjs"
+    "images": "node scripts/fetch-images.mjs",
+    "images:blur": "node scripts/fetch-images.mjs --blur-only",
+    "images:placeholders": "node scripts/generate-placeholders.mjs"
   },
   "dependencies": {
     "lenis": "^1.3.26",

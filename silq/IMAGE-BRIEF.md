@@ -1,107 +1,144 @@
-# SILQ — image brief
+# SILQ — image pipeline
 
-Every image slot on the site, what it needs to be, and where it appears.
+The site has 22 image slots. All of them are fetched, graded and written by one
+command.
 
-The site ships with generated gradient placeholders so it builds and looks
-intentional before any real photograph exists. Replace them one at a time —
-nothing breaks while some slots are still placeholders.
+## Running it
 
-## How to replace an image
+```bash
+# 1. Get a free key (instant, no card) at https://www.pexels.com/api/
+cp .env.local.example .env.local     # then paste the key in
+npm run images                        # fills every empty slot
+```
 
-1. Save the photo as `public/images/<slot>.jpg`, at the dimensions in the table
-   (same aspect ratio is what matters most; larger is fine, smaller is not).
-2. Run `npm run placeholders`. Existing files are never overwritten, and this
-   regenerates the blur-up previews from whatever is now on disk.
-3. Update the `alt` text for that slot in `src/content/images.ts` so it
-   describes the actual photograph.
+`PEXELS_API_KEY` is **build-time only**. It is never prefixed `NEXT_PUBLIC_`,
+never imported by anything under `src/`, and never reaches the browser.
+`.env.local` is gitignored.
 
-To regenerate every placeholder from scratch: `node scripts/generate-placeholders.mjs --force`
-(this **will** overwrite real photos — only use it on a clean slate).
+| Command | What it does |
+| --- | --- |
+| `npm run images` | Fetches any slot that has no file yet. Safe to re-run. |
+| `npm run images -- --force` | Re-fetches and overwrites everything. |
+| `npm run images:blur` | No network. Refreshes blur previews from whatever is on disk — run after dropping in your own photos. |
+| `npm run images:placeholders` | Writes a plain warm gradient into any still-empty slot so the site always builds. |
 
-## A note on sourcing
+## What the fetch does
 
-**Use the owner's own client photographs for the gallery slots.** Stock imagery
-in a transformations gallery is transparent to anyone who has ever booked a
-salon, and it undermines the specialist positioning the rest of the site works
-to build. Real before/afters, shot on a phone in ordinary daylight, outperform
-polished stock every time in this market.
+1. **Searches** Pexels per slot with the tuned query and orientation below,
+   `size=large`, `per_page=15`, 250ms between requests.
+2. **Scores** all 15 candidates and rejects any whose dominant colour will fight
+   the bone/clay palette — saturated green, cyan, blue and violet are thrown
+   out, as are frames that are too dark or blown out. Near-neutral images pass
+   whatever their hue, because a grey-beige interior reads as warm once graded.
+   Remaining candidates are ranked by warmth, then by resolution.
+3. **Writes all 15** to `image-candidates.json`, best first, with the rejected
+   ones last and the reason recorded.
+4. **Crops** the winner to the slot's exact dimensions with `fit: cover` and
+   sharp's `attention` strategy, so the crop lands on the subject.
+5. **Grades** every image identically — saturation 0.82, brightness 1.02, and a
+   6% bone wash composited over the top. This is what stops 21 unrelated stock
+   photographs from looking like 21 unrelated stock photographs.
+6. **Encodes** WebP at quality 82 plus a JPEG of the same processed pixels.
+7. **Generates** `src/content/blur-data.ts` (blur-up previews) and
+   `src/content/credits.ts` (attribution, which powers `/credits`).
 
-Stock is acceptable for the hero, the intro editorial and the booking block,
-where the subject is mood rather than evidence. Suggested search terms are given
-for each. If sourcing from Unsplash or Pexels, `next.config.ts` already allows
-`images.unsplash.com` and `images.pexels.com` as remote hosts, so a hosted URL
-can be dropped straight into the manifest instead of a local file.
+## Changing a pick you do not like
 
-Get written permission from any client whose hair appears on the site.
+Every candidate is already in `image-candidates.json`. No need to re-search:
+
+```jsonc
+"svc-keratin": {
+  "selectedIndex": 0,        // ← change to 3, save
+  "candidates": [ /* 15 of them, with avgColor, score, photographer */ ]
+}
+```
+
+```bash
+npm run images -- --force
+```
+
+The cached candidate list is reused, so the choice is reproducible and costs no
+API quota. `selectedIndex` persists.
+
+## The treatment rule
+
+**Any image that still looks like a bright commercial stock photo is a
+rejection.** Open it, and if it does, bump `selectedIndex` and re-run. The grade
+does a lot but it cannot save a photo that was lit like an advert.
+
+**Never show a face at a size where it reads as "this is our stylist."** Prefer
+back-of-head, hands, hair detail and cropped compositions. This site sells
+craft, not personalities — and it avoids implying that stock models are real
+clients. The queries below are chosen with that in mind; check the result.
+
+On top of the baked grade, the gallery and service images also carry a runtime
+`--champagne` overlay at 8% `mix-blend-multiply`, so the palette wins over the
+photography even if someone drops in an ungraded file.
 
 ## Slots
 
 ### Feature
 
-| Slot | Dimensions | Orientation | Where it appears | Suggested search |
-| --- | --- | --- | --- | --- |
-| `hero` | 2400 × 1600 | Landscape | Full-viewport opening frame | glossy brunette blow dry natural light interior |
-| `intro-editorial` | 1600 × 1200 | Landscape | "We do hair — properly" section | hair colour bowl brush foils flat lay salon trolley |
-| `booking-block` | 1800 × 1200 | Landscape | Background of the booking section (shown at 14% opacity) | portable salon chair setup home living room styling |
-| `og-image` | 1200 × 630 | Landscape | Social share card — not shown on the site itself | editorial hair portrait warm neutral tones landscape crop |
-
-The hero carries the most weight of any image here. It should read as a real
-Dubai home rather than a salon floor — natural light, an interior that could be
-someone's apartment, and hair that looks finished.
+| Slot | Dimensions | Orientation | Query |
+| --- | --- | --- | --- |
+| `hero` | 2400 × 1600 | landscape | woman long glossy brown hair back view |
+| `intro-editorial` | 1600 × 1200 | landscape | hairdresser hands sectioning hair |
+| `booking-block` | 1800 × 1200 | landscape | beige minimal interior soft daylight |
+| `og-image` | 1200 × 630 | landscape | *(no search — cropped from `hero`)* |
 
 ### Services — all 1400 × 1750, portrait
 
-These appear in the sticky showcase and as the lead image on each service page,
-so each one needs to work large and cropped to 4:5.
-
-| Slot | Service | Suggested search |
+| Slot | Service | Query |
 | --- | --- | --- |
-| `service-cutting` | Hair Cutting | hair cutting scissors precision bob salon portrait |
-| `service-colouring` | Hair Colouring | hair colour application root brush section salon |
-| `service-balayage` | Highlights, Balayage, Babylights & Ombré | balayage hair back view salon |
-| `service-treatments` | Hair Treatments | hair mask treatment wet hair conditioning salon |
-| `service-keratin` | Keratin & Protein | smooth glossy straight hair studio |
-| `service-botox` | Hair Botox & Hair Spa | shiny defined curls healthy hair portrait |
-| `service-styling` | Styling, Updos & Retro Waves | elegant updo chignon occasion hair back view |
-| `service-threading` | Brow & Face Threading | eyebrow threading close up |
+| `svc-cutting` | Hair Cutting | hairdresser cutting long hair scissors |
+| `svc-colouring` | Hair Colouring | hair colour application brush bowl salon |
+| `svc-highlights` | Highlights, Balayage, Babylights & Ombré | balayage blonde hair back view |
+| `svc-treatment` | Hair Treatments | hair mask treatment application salon |
+| `svc-keratin` | Keratin & Protein | straight glossy smooth brown hair |
+| `svc-botox-spa` | Hair Botox & Hair Spa | hair wash basin scalp massage salon |
+| `svc-styling` | Styling, Updos & Retro Waves | elegant hair updo bridal styling |
+| `svc-threading` | Brow & Face Threading | eyebrow shaping close up beauty |
 
-### Gallery — mixed aspect ratios
+### Gallery
 
-The horizontal gallery deliberately varies aspect ratio; keep the mix so the row
-does not read as a uniform filmstrip. Owner's own client work strongly preferred.
+> **These ten are temporary.** See the warning below.
 
-| Slot | Dimensions | Orientation | Suggested subject |
+| Slot | Dimensions | Orientation | Query |
 | --- | --- | --- | --- |
-| `gallery-01` | 1200 × 1600 | Portrait | Before/after: brunette lifted to soft bronde balayage |
-| `gallery-02` | 1600 × 1200 | Landscape | Frizzy mid-lengths smoothed after keratin |
-| `gallery-03` | 1400 × 1400 | Square | Fine babylights through a dark base |
-| `gallery-04` | 1100 × 1650 | Portrait | Blunt French bob cut to the jaw |
-| `gallery-05` | 1800 × 1200 | Landscape | Old-Hollywood waves, set and brushed out |
-| `gallery-06` | 1200 × 1500 | Portrait | Grey coverage with a reflective tone |
-| `gallery-07` | 1500 × 1000 | Landscape | Bridal updo pinned low with a veil comb |
-| `gallery-08` | 1300 × 1625 | Portrait | Copper ombré through the lengths |
-| `gallery-09` | 1400 × 1050 | Landscape | Curls restored after bond repair |
-| `gallery-10` | 1200 × 1800 | Portrait | Long layers with face-framing brightness |
+| `gal-01` | 1000 × 1400 | portrait | brunette balayage hair salon |
+| `gal-02` | 1400 × 1000 | landscape | blowout wavy hair styling |
+| `gal-03` | 1000 × 1400 | portrait | caramel highlights long hair |
+| `gal-04` | 1000 × 1400 | portrait | sleek straight dark hair portrait |
+| `gal-05` | 1400 × 1000 | landscape | hair curling iron waves |
+| `gal-06` | 1000 × 1400 | portrait | ombre hair colour long |
+| `gal-07` | 1000 × 1400 | portrait | bridal hair pinned updo detail |
+| `gal-08` | 1400 × 1000 | landscape | glossy healthy hair shine close up |
+| `gal-09` | 1000 × 1400 | portrait | short bob haircut styling |
+| `gal-10` | 1400 × 1000 | landscape | hair foils highlights process |
 
-### Icons
+## The gallery is placeholder work
 
-Generated by the same script into `src/app/`, and picked up automatically by
-Next's metadata conventions:
+The ten gallery slots are stock. They **must** be replaced with real
+before/after client work before any paid traffic is sent to this site. Stock
+transformation photos on a service business are the fastest way to lose trust in
+this market — the people booking at-home colour in Dubai have seen the same
+Pexels images on six competitor sites.
 
-| File | Size | Purpose |
-| --- | --- | --- |
-| `src/app/icon.png` | 512 × 512 | Favicon (Next downsizes as needed) |
-| `src/app/apple-icon.png` | 180 × 180 | iOS home-screen icon |
+To replace: drop your own files into `public/images/` using the same filenames
+(`gal-01.webp` … `gal-10.webp`), then run `npm run images:blur`. No code change.
 
-Replace both with real brand marks when they exist. Keep the filenames.
+Shooting notes for real client work:
 
-## Shooting notes
-
-- Shoot in daylight wherever possible. Warm indoor bulbs pull colour work orange
-  and misrepresent the result.
+- Daylight wherever possible. Warm indoor bulbs pull colour work orange and
+  misrepresent the result.
 - Back-of-head shots sell colour better than faces, and sidestep the consent
   problem almost entirely.
-- Before/after pairs should be shot in the same spot, same light, same distance.
-  A pair shot in different conditions reads as dishonest even when it is not.
-- Keep the palette warm and neutral. Images with strong blues or greens fight
-  the bone/clay/champagne system the site is built on.
+- Before/after pairs need the same spot, light and distance. A pair shot in
+  different conditions reads as dishonest even when it is not.
+- Get written permission from any client whose hair appears on the site.
+
+## Icons
+
+`src/app/icon.png` (512²) and `src/app/apple-icon.png` (180²) are generated by
+`npm run images:placeholders` from the wordmark, not from photography. Replace
+with real brand marks when they exist; keep the filenames.

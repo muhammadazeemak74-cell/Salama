@@ -21,12 +21,16 @@ Bookings route to WhatsApp, which is how this market actually converts.
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
-npm run build        # production build
-npm start            # serve the production build
+npm run dev     # http://localhost:3000
+npm run build   # production build
+npm start       # serve the production build
 npm run lint
-npm run placeholders # regenerate image placeholders + blur data
+npm run images  # fetch + grade photography (needs PEXELS_API_KEY)
 ```
+
+Photography is fetched at build time rather than committed by hand. See
+**IMAGE-BRIEF.md** — the short version is: get a free Pexels key, put it in
+`.env.local`, run `npm run images`.
 
 ## Where to change things
 
@@ -118,17 +122,31 @@ searched for in this city.
 
 ### Images
 
-See **IMAGE-BRIEF.md** for the full slot list, dimensions and shot notes. Short
-version: drop a correctly-sized JPEG at `public/images/<slot>.jpg`, run
-`npm run placeholders`, update the alt text.
+See **IMAGE-BRIEF.md** for the pipeline, the slot list and the queries.
+
+- `npm run images` fetches, grades and writes all 22 slots from Pexels.
+- To swap a pick you dislike, edit `selectedIndex` in `image-candidates.json`
+  and re-run with `--force`. No new search, no quota spent.
+- To use your own photograph, drop it at `public/images/<slot>.webp` and run
+  `npm run images:blur`.
+
+`PEXELS_API_KEY` lives in `.env.local` (gitignored) and is build-time only —
+never `NEXT_PUBLIC_`, never imported under `src/`, never sent to the browser.
+
+**The ten gallery slots are stock placeholders** and must be replaced with real
+client work before any paid traffic. This is flagged at the top of
+`src/content/images.ts` too.
 
 ## Placeholders to replace before launch
 
 Search the codebase for `TODO(owner)`. The ones that matter:
 
 - **`WHATSAPP_NUMBER`** — the site does not work without it.
-- **`TRUST_STATS`** in `copy.ts` — years, appointments, areas, rating. Do not
-  publish a rating or review count you cannot evidence.
+- **`TRUST_STATS`** in `site.ts` — all four are `null`, so the trust bar does
+  not render at all. Fill in only figures you could evidence on request: a
+  fabricated review score is a legal exposure for a trade-licensed business.
+  The bar renders whichever stats have values, so they can go in one at a time.
+  "Areas covered" is safe to switch on immediately — it is `AREAS.length`.
 - **`TESTIMONIALS`** — all three are placeholders and say so.
 - **`SITE.tradeLicence`** and **`SITE_URL`**.
 - **Prices** — researched market benchmarks, not confirmed rates.
@@ -202,17 +220,33 @@ Lighthouse, mobile, against a local production build (median of three runs):
 
 | | Home | Service page |
 | --- | --- | --- |
-| Performance | 94 | 95 |
+| Performance | 89 | 95 |
 | Accessibility | 100 | 100 |
 | Best practices | 100 | 100 |
 | SEO | 100 | 100 |
 
-CLS 0, TBT ~100ms. Reported LCP is 2.9s under Lighthouse's simulated slow-4G
-throttling; measured in a real browser under 4× CPU throttling it is under one
-second. Expect the simulated figure to move once real photography replaces the
-placeholders — the hero image will become the LCP element.
+CLS 0. Measured with photographic content in every slot, which is the honest
+comparison — with flat gradient placeholders the same build scores 94, because
+low-entropy images are cheap in a way real photographs are not.
+
+Run-to-run spread on the sandbox used for these numbers was wide (85–92), so
+treat performance as "about 89". The remaining headroom is Motion's bundle:
+script evaluation is ~1s of the main-thread total, dwarfing everything else. If
+performance ever needs to be bought, `LazyMotion` with a reduced feature set is
+where to buy it.
+
+Reported LCP is 2.9–3.4s under Lighthouse's *simulated* slow-4G throttling. The
+same page measured in a real browser under 4× CPU throttling paints its largest
+element in well under a second — the simulated figure models a dependency graph,
+not an observation.
 
 ## Deployment
 
-Vercel, zero configuration. No environment variables are required; there is no
-backend and no API keys. Build command `next build`, output directory `.next`.
+Vercel. **Root Directory must be set to `silq`** — this is a multi-project repo
+and the default (repo root) builds a different app.
+
+No environment variables are required at deploy time. `PEXELS_API_KEY` is only
+needed locally when refreshing photography; the resulting images are committed,
+so Vercel never needs the key.
+
+Build command `next build`, output directory `.next`.

@@ -19,18 +19,6 @@ export const HERO = {
   scrollCue: "Scroll",
 } as const;
 
-/**
- * TODO(owner): Replace all four values with real, defensible numbers before
- * launch. Do not publish a review count or a rating you cannot evidence — UAE
- * advertising rules and Google's review policies both apply here.
- */
-export const TRUST_STATS = [
-  { value: 12, suffix: "", label: "Years behind the chair" },
-  { value: 2400, suffix: "+", label: "Appointments at home" },
-  { value: 21, suffix: "", label: "Dubai areas covered" },
-  { value: 4.9, suffix: "", decimals: 1, label: "Average client rating" },
-] as const;
-
 export const INTRO = {
   eyebrow: "The difference",
   lines: [
