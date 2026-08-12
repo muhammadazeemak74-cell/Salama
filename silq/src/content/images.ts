@@ -6,9 +6,10 @@
  * traffic is sent to this site. Stock transformation photos on a service
  * business are the fastest way to lose trust in this market.
  *
- * Replace by dropping files into /public/images/ with the same filenames —
- * gal-01.webp, gal-02.webp, and so on. No code change needed. Re-run
- * `npm run images:blur` afterwards to refresh the blur-up previews.
+ * Replace by dropping your own files into the committed photos/ directory,
+ * named after the slot — photos/gal-01.jpg, photos/gal-02.jpg, and so on. The
+ * build crops them to size and they take precedence over anything fetched.
+ * No code change needed. See photos/README.md.
  * ---------------------------------------------------------------------------
  */
 

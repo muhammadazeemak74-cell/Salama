@@ -13,6 +13,11 @@ yarn-error.log*
 
 # Build-time Pexels key. Never commit this.
 .env.local
+
+# Photography is fetched at build time (see scripts/prepare-images.mjs), so the
+# image files themselves are build output rather than source. blur-data.ts and
+# credits.ts stay committed so the project type-checks on a fresh clone.
+/public/images/
 .vercel
 *.tsbuildinfo
 next-env.d.ts

@@ -3,13 +3,48 @@
 The site has 22 image slots. All of them are fetched, graded and written by one
 command.
 
-## Running it
+## Where the images come from
+
+Photography is assembled **during the build**, not committed. `npm run build`
+runs `scripts/prepare-images.mjs` first, which, in order:
+
+1. uses any of your own photographs from `photos/` — these always win;
+2. fetches the rest from Pexels if `PEXELS_API_KEY` is set;
+3. fills anything still missing with a gradient placeholder.
+
+So the site always builds, with or without a key, online or offline.
+`public/images/` is gitignored — it is build output.
+
+### On Vercel
+
+Add `PEXELS_API_KEY` under **Settings → Environment Variables** (Production and
+Preview). It is only read during the build; it is not `NEXT_PUBLIC_`, so it
+never reaches the browser. The next deploy ships photography.
+
+### Locally
 
 ```bash
-# 1. Get a free key (instant, no card) at https://www.pexels.com/api/
+# Get a free key (instant, no card) at https://www.pexels.com/api/
 cp .env.local.example .env.local     # then paste the key in
 npm run images                        # fills every empty slot
 ```
+
+Without a key, `npm run dev` and `npm run build` both still work — you just get
+gradients.
+
+### Pin your picks (recommended after the first successful build)
+
+Every build re-searches Pexels, and Pexels results drift over time, so **the
+hero can silently change between deploys.** To stop that:
+
+```bash
+npm run images        # locally, with a key
+git add image-candidates.json && git commit -m "Pin photography picks"
+```
+
+With that file committed, the fetch reuses the cached candidate list instead of
+searching. Picks become deterministic, and every deploy makes 21 downloads
+instead of 21 searches plus 21 downloads.
 
 `PEXELS_API_KEY` is **build-time only**. It is never prefixed `NEXT_PUBLIC_`,
 never imported by anything under `src/`, and never reaches the browser.
@@ -17,9 +52,10 @@ never imported by anything under `src/`, and never reaches the browser.
 
 | Command | What it does |
 | --- | --- |
+| `npm run build` | Prepares images (fetch if keyed, else placeholders), then builds. |
 | `npm run images` | Fetches any slot that has no file yet. Safe to re-run. |
 | `npm run images -- --force` | Re-fetches and overwrites everything. |
-| `npm run images:blur` | No network. Refreshes blur previews from whatever is on disk — run after dropping in your own photos. |
+| `npm run images:blur` | No network. Refreshes blur previews from whatever is on disk. |
 | `npm run images:placeholders` | Writes a plain warm gradient into any still-empty slot so the site always builds. |
 
 ## What the fetch does
@@ -124,8 +160,13 @@ transformation photos on a service business are the fastest way to lose trust in
 this market — the people booking at-home colour in Dubai have seen the same
 Pexels images on six competitor sites.
 
-To replace: drop your own files into `public/images/` using the same filenames
-(`gal-01.webp` … `gal-10.webp`), then run `npm run images:blur`. No code change.
+To replace: drop your own files into the committed **`photos/`** directory,
+named after the slot — `photos/gal-01.jpg` … `photos/gal-10.jpg`. Any format,
+any size; the build crops each to the slot's dimensions and it takes precedence
+over anything fetched. No code change. See `photos/README.md`.
+
+(`public/images/` is build output and gitignored, so it is not somewhere a real
+photograph can live — that is what `photos/` is for.)
 
 Shooting notes for real client work:
 

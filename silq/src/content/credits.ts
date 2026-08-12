@@ -12,8 +12,8 @@ export type PhotoCredit = {
  * Pexels does not require attribution but asks for it, so every photograph
  * still in use is credited on /credits.
  *
- * Empty until `npm run images` has run with a PEXELS_API_KEY. The slots are
- * currently filled by generated gradient placeholders, which nobody owns and
- * nothing needs crediting for.
+ * Empty until a build has run with PEXELS_API_KEY set. Gradient placeholders
+ * need no attribution — nobody owns them, and crediting a photographer for an
+ * image that is not theirs is worse than crediting nobody.
  */
 export const PHOTO_CREDITS: Partial<Record<ImageSlot, PhotoCredit>> = {};

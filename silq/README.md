@@ -28,9 +28,11 @@ npm run lint
 npm run images  # fetch + grade photography (needs PEXELS_API_KEY)
 ```
 
-Photography is fetched at build time rather than committed by hand. See
-**IMAGE-BRIEF.md** — the short version is: get a free Pexels key, put it in
-`.env.local`, run `npm run images`.
+Photography is fetched **during the build**. `prebuild` runs
+`scripts/prepare-images.mjs`, which fetches from Pexels when `PEXELS_API_KEY`
+is set and falls back to gradient placeholders when it is not — so the build
+works offline, without a key, and survives Pexels being down. `public/images/`
+is build output and is gitignored. See **IMAGE-BRIEF.md**.
 
 ## Where to change things
 
@@ -245,8 +247,10 @@ not an observation.
 Vercel. **Root Directory must be set to `silq`** — this is a multi-project repo
 and the default (repo root) builds a different app.
 
-No environment variables are required at deploy time. `PEXELS_API_KEY` is only
-needed locally when refreshing photography; the resulting images are committed,
-so Vercel never needs the key.
+Set **`PEXELS_API_KEY`** under Settings → Environment Variables (Production and
+Preview) to ship photography. Without it the deploy still succeeds, using
+gradient placeholders. The key is build-time only and never reaches the browser.
 
-Build command `next build`, output directory `.next`.
+Build command `next build`, output directory `.next`. The build fetches and
+processes 22 images, which adds roughly a minute; commit
+`image-candidates.json` to pin the picks and skip the search step.
