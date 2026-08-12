@@ -129,7 +129,8 @@ const COOL_HUE_START = 75;
 const COOL_HUE_END = 330;
 const NEUTRAL_SATURATION = 0.12;
 
-function scoreCandidate(photo) {
+function scoreCandidate(photo, minWidth = 0, minHeight = 0) {
+  // avg_color is nullable in the Pexels schema; a mid grey scores as neutral.
   const { h, s, l } = hexToHsl(photo.avg_color ?? "#808080");
 
   const isCool = s > NEUTRAL_SATURATION && h >= COOL_HUE_START && h < COOL_HUE_END;
@@ -147,7 +148,17 @@ function scoreCandidate(photo) {
   // Resolution headroom, so the crop to target size never upscales.
   const resolution = Math.min((photo.width ?? 0) / 4000, 1);
 
-  return { score: warmth * 100 + resolution * 25, rejected: false, reason: null };
+  // Anything smaller than the slot has to be enlarged, which reads as cheap
+  // stock however good the framing. Heavily penalised rather than rejected, so
+  // a slot where every candidate is small still gets its best option.
+  const undersized = (photo.width ?? 0) < minWidth || (photo.height ?? 0) < minHeight;
+
+  return {
+    score: warmth * 100 + resolution * 25 - (undersized ? 60 : 0),
+    rejected: false,
+    reason: null,
+    undersized,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +177,9 @@ async function search(query, orientation, apiKey) {
     throw new Error(`Pexels search failed (${response.status} ${response.statusText}) for "${query}"`);
   }
   const data = await response.json();
+  // Pexels reports quota and key problems in an `error` field, sometimes with
+  // a 200. Surface it rather than letting it degrade into "no candidates".
+  if (data.error) throw new Error(`Pexels: ${data.error}`);
   return data.photos ?? [];
 }
 
@@ -340,7 +354,7 @@ async function main() {
           query,
           selectedIndex: 0,
           candidates: photos.map((photo) => {
-            const { score, rejected, reason } = scoreCandidate(photo);
+            const { score, rejected, reason, undersized } = scoreCandidate(photo, width, height);
             return {
               id: photo.id,
               width: photo.width,
@@ -349,6 +363,7 @@ async function main() {
               score: Math.round(score * 10) / 10,
               rejected,
               rejectedReason: reason,
+              undersized: Boolean(undersized),
               photographer: photo.photographer,
               photographerUrl: photo.photographer_url,
               photoUrl: photo.url,
@@ -366,6 +381,11 @@ async function main() {
       if (!pick) throw new Error("no candidates returned");
       if (pick.rejected) {
         console.warn(`  ! ${slot} — selected candidate is flagged: ${pick.rejectedReason}`);
+      }
+      if (pick.undersized) {
+        console.warn(
+          `  ! ${slot} — source is ${pick.width}×${pick.height}, smaller than the ${width}×${height} slot; it will be enlarged`,
+        );
       }
 
       const buffer = await download(pick.original);
