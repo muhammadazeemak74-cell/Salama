@@ -4,5 +4,30 @@
   "private": true,
   "description": "Shared PostgreSQL schemas, migrations and Redis helpers for BoloShop",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "dist/index.js",
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist",
+    "migrate": "npm run build --silent && node dist/migrate.js up",
+    "migrate:status": "npm run build --silent && node dist/migrate.js status"
+  }
 }
