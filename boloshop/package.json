@@ -4,9 +4,9 @@
   "private": true,
   "description": "BoloShop — live-commerce monorepo (Flutter app, Node API gateway, media engine, Go order service)",
   "workspaces": [
+    "packages/db",
     "services/api-gateway",
-    "services/media-service",
-    "packages/db"
+    "services/media-service"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
