@@ -1,0 +1,8 @@
+{
+  "name": "@boloshop/media-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FFmpeg canvas pipeline and HLS adaptive streaming for BoloShop live video",
+  "type": "module",
+  "main": "src/index.ts"
+}

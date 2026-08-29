@@ -1,0 +1,8 @@
+{
+  "name": "@boloshop/api-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript Express API gateway for BoloShop",
+  "type": "module",
+  "main": "src/index.ts"
+}
