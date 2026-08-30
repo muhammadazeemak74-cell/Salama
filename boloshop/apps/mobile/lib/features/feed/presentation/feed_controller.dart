@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../voice/domain/voice_filter.dart';
 import '../data/feed_repository.dart';
 import '../domain/feed_item.dart';
 
@@ -10,18 +11,38 @@ class FeedState {
     this.currentIndex = 0,
     this.isLoading = false,
     this.errorMessage,
+    this.filters = const <VoiceFilter>{},
+    this.transcript,
   });
 
+  /// Everything the feed has loaded, before filtering.
   final List<FeedItem> items;
   final int currentIndex;
   final bool isLoading;
+
+  /// Filters applied from a Bolo voice search. Empty means the whole feed.
+  final Set<VoiceFilter> filters;
+
+  /// What Bolo heard, kept so the UI can show why the feed is narrowed.
+  final String? transcript;
 
   /// Set when the feed fell back to sample content, so the UI can say so
   /// instead of silently pretending the network worked.
   final String? errorMessage;
 
-  FeedItem? get current =>
-      currentIndex >= 0 && currentIndex < items.length ? items[currentIndex] : null;
+  /// What is actually on screen once the filters are applied.
+  List<FeedItem> get visibleItems => applyFilters(items, filters);
+
+  /// True when filters are on but nothing survives them — a real state the
+  /// feed has to render, not an error.
+  bool get isFilteredEmpty => filters.isNotEmpty && visibleItems.isEmpty;
+
+  FeedItem? get current {
+    final visible = visibleItems;
+    return currentIndex >= 0 && currentIndex < visible.length
+        ? visible[currentIndex]
+        : null;
+  }
 
   FeedState copyWith({
     List<FeedItem>? items,
@@ -29,13 +50,17 @@ class FeedState {
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
-  }) =>
-      FeedState(
-        items: items ?? this.items,
-        currentIndex: currentIndex ?? this.currentIndex,
-        isLoading: isLoading ?? this.isLoading,
-        errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      );
+    Set<VoiceFilter>? filters,
+    String? transcript,
+    bool clearTranscript = false,
+  }) => FeedState(
+    items: items ?? this.items,
+    currentIndex: currentIndex ?? this.currentIndex,
+    isLoading: isLoading ?? this.isLoading,
+    errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    filters: filters ?? this.filters,
+    transcript: clearTranscript ? null : (transcript ?? this.transcript),
+  );
 }
 
 /// Owns the feed. Likes are applied optimistically — the person tapping a
@@ -59,6 +84,10 @@ class FeedController extends Notifier<FeedState> {
         // development; keep the samples and say nothing.
         items: items.isEmpty ? sampleFeed : items,
         currentIndex: 0,
+        // Filters survive a refresh: a buyer who narrowed to lawn suits did
+        // not ask for the whole catalog back.
+        filters: state.filters,
+        transcript: state.transcript,
       );
     } on Object {
       state = state.copyWith(
@@ -71,6 +100,35 @@ class FeedController extends Notifier<FeedState> {
   void onPageChanged(int index) {
     if (index == state.currentIndex) return;
     state = state.copyWith(currentIndex: index);
+  }
+
+  /// Replaces the active filter set from a Bolo search.
+  ///
+  /// The index resets to zero: after the feed narrows, whatever was page four
+  /// is a different product, and leaving the viewer there would look like the
+  /// app jumped.
+  void applyVoiceFilters(Set<VoiceFilter> filters, {String? transcript}) {
+    state = state.copyWith(
+      filters: filters,
+      currentIndex: 0,
+      transcript: transcript,
+      clearTranscript: transcript == null,
+    );
+  }
+
+  /// Turns one chip on or off, keeping the rest.
+  void toggleFilter(VoiceFilter filter) {
+    final next = Set<VoiceFilter>.from(state.filters);
+    if (!next.remove(filter)) next.add(filter);
+    state = state.copyWith(filters: next, currentIndex: 0);
+  }
+
+  void clearFilters() {
+    state = state.copyWith(
+      filters: const <VoiceFilter>{},
+      currentIndex: 0,
+      clearTranscript: true,
+    );
   }
 
   /// Toggles the like on one item.
@@ -102,5 +160,6 @@ class FeedController extends Notifier<FeedState> {
   }
 }
 
-final feedControllerProvider =
-    NotifierProvider<FeedController, FeedState>(FeedController.new);
+final feedControllerProvider = NotifierProvider<FeedController, FeedState>(
+  FeedController.new,
+);

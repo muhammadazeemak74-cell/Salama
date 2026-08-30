@@ -56,6 +56,7 @@ void main() {
     test('changes only what it is given', () {
       const item = FeedItem(
         id: 'f1',
+        sellerId: 'bbbbbbbb-0000-0000-0000-000000000009',
         productTitle: 'Kurta',
         fabricSpecs: 'Cotton',
         soloPricePkr: '1000.00',

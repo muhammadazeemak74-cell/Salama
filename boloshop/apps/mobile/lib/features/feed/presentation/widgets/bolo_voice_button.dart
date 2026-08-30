@@ -9,7 +9,11 @@ import '../../../../core/theme/app_colors.dart';
 /// every page of the feed because it is the app's primary input, not a feature
 /// tucked into a menu.
 class BoloVoiceButton extends StatefulWidget {
-  const BoloVoiceButton({required this.onPressed, this.isListening = false, super.key});
+  const BoloVoiceButton({
+    required this.onPressed,
+    this.isListening = false,
+    super.key,
+  });
 
   final VoidCallback onPressed;
   final bool isListening;
@@ -38,7 +42,9 @@ class _BoloVoiceButtonState extends State<BoloVoiceButton>
       builder: (context, child) {
         // A wider halo while listening, so the state is legible at a glance
         // without a second label.
-        final glow = widget.isListening ? 0.45 + 0.35 * _controller.value : 0.28;
+        final glow = widget.isListening
+            ? 0.45 + 0.35 * _controller.value
+            : 0.28;
         return DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
@@ -72,10 +78,10 @@ class _BoloVoiceButtonState extends State<BoloVoiceButton>
                   Text(
                     'Bolo',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
-                        ),
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   const Text('🎙️', style: TextStyle(fontSize: 15, height: 1)),

@@ -16,6 +16,10 @@ lib/features/feed/data/feed_repository.dart      gateway calls + sample content
 lib/features/feed/presentation/feed_controller.dart      Riverpod state
 lib/features/feed/presentation/screens/feed_screen.dart  the feed
 lib/features/feed/presentation/widgets/          badge, voice button, rail, card
+lib/core/session/session.dart                    who is signed in
+lib/core/launcher/url_launcher_service.dart      opening external links
+lib/features/orders/                             buy flows, order models, share dialog
+lib/features/voice/                              Bolo search modal and its filters
 ```
 
 ## Running
@@ -24,7 +28,7 @@ lib/features/feed/presentation/widgets/          badge, voice button, rail, card
 flutter pub get
 flutter run
 flutter analyze     # must be clean
-flutter test        # 27 unit and widget tests
+flutter test        # 62 unit and widget tests
 ```
 
 Point the app at your machine's backends:
@@ -43,6 +47,52 @@ looks exactly like the server being down.
 If the gateway is unreachable the feed falls back to four sample products and
 says so in a pill under the status bar, rather than pretending a hardcoded list
 is the catalog.
+
+## Buying
+
+Both buttons go through `OrderActions`, and both start with the same call —
+`POST /api/v1/orders` on the Go order service.
+
+**Solo Buy** places the order at the solo price, then opens the `wa.me` link the
+service built, addressed to that seller's number with the confirmation message
+already written. The 1% commission comes back in the response; the app displays
+it and never computes it, because it is a generated column in Postgres.
+
+**Team Buy** places the same order and then calls
+`POST /api/v1/team-buy/create` on it. That endpoint opens a team purchase on an
+order that already exists and is still pending, so the order has to come first —
+one tap, two calls. The dialog that follows shows the 24-hour share link, a
+countdown, and a WhatsApp invite button that opens the contact picker
+(`https://wa.me/?text=…`, no number) with the invitation ready to send.
+
+The discount is **not** applied by the app. The order is created at the solo
+price and the order service takes the percentage off when a friend actually
+joins, which also recomputes the commission. Until then the buyer is committed
+to the full price, and the dialog says so.
+
+A buy in flight blocks the feed, and a second tap returns
+`BuyAlreadyInProgress` rather than placing a second cash-on-delivery order.
+
+### Android package visibility
+
+`android/app/src/main/AndroidManifest.xml` declares an `<intent>` query for
+`VIEW` + `https`. Without it, Android 11+ filters the intent, `url_launcher`
+resolves nothing, and the launch fails in a way indistinguishable from WhatsApp
+not being installed.
+
+## Bolo voice search
+
+Tapping the green Bolo bar opens a translucent bottom sheet: an animated
+waveform, a state line in Roman Urdu, the transcript it heard, and the filter
+chips that transcript produced. Chips are editable before applying — the
+transcription is the unreliable part of the feature, so it is shown and
+corrected rather than acted on invisibly.
+
+Applying sets the feed's filter set. Filters combine with AND, the page resets
+to the top, and a bar under the status bar shows the transcript, the match count
+and a way out. `< ₨ 3,000` matches on the **team** price — the lowest a buyer
+can actually reach — because a group-buy app that hides a ₨2,450 suit from an
+"under ₨3,000" search is hiding its own product.
 
 ## The feed
 
@@ -82,11 +132,16 @@ sends a different team price the badge follows it.
 
 ## Known gaps
 
-- **Buttons are wired to a SnackBar, not to checkout.** Solo buy, team buy,
-  comments and share acknowledge the tap and stop there. The order and team-buy
-  endpoints exist in `services/order-service`; nothing calls them yet.
+- **No auth flow, so no buyer id.** The gateway's OTP endpoints exist; the
+  screens that call them do not. Until then the buyer comes from
+  `--dart-define=DEMO_BUYER_ID=<uuid of a verified user>`, and without it both
+  buy buttons say "sign in" rather than sending an invented UUID that the order
+  service would reject with a confusing 404. `SessionController.signIn` is the
+  seam.
+- **Speech capture is not wired up.** The voice sheet runs a scripted sequence
+  over the real animation, state machine and filter logic, and is labelled
+  "Demo" on screen. Only the recogniser has to be dropped in.
+- **Comments and the rail's share button** still acknowledge the tap and stop.
 - **`Icons.share` stands in for the WhatsApp glyph** until brand assets land.
 - **google_fonts fetches Inter at runtime**, which is the wrong trade for this
   market. Bundle the `.ttf` and turn runtime fetching off before release.
-- **No auth flow.** `ApiClient.authToken` is the seam; the OTP screens that
-  fill it are not built.

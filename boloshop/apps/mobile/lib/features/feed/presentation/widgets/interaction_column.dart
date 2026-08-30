@@ -73,7 +73,8 @@ class _SellerAvatar extends StatelessWidget {
     final words = storeName.trim().split(RegExp(r'\s+'));
     if (words.isEmpty || words.first.isEmpty) return '?';
     if (words.length == 1) return words.first.characters.first.toUpperCase();
-    return (words[0].characters.first + words[1].characters.first).toUpperCase();
+    return (words[0].characters.first + words[1].characters.first)
+        .toUpperCase();
   }
 
   @override
@@ -96,10 +97,8 @@ class _SellerAvatar extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               _initials,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(color: Colors.black, fontWeight: FontWeight.w800),
             ),
           ),
           Positioned(
@@ -113,9 +112,14 @@ class _SellerAvatar extends StatelessWidget {
                   width: 22,
                   height: 22,
                   decoration: BoxDecoration(
-                    color: isFollowing ? AppColors.surfaceRaised : AppColors.electricRose,
+                    color: isFollowing
+                        ? AppColors.surfaceRaised
+                        : AppColors.electricRose,
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.darkBackground, width: 2),
+                    border: Border.all(
+                      color: AppColors.darkBackground,
+                      width: 2,
+                    ),
                   ),
                   child: Icon(
                     isFollowing ? Icons.check : Icons.add,
@@ -149,7 +153,8 @@ class _LikeButton extends StatefulWidget {
   State<_LikeButton> createState() => _LikeButtonState();
 }
 
-class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderStateMixin {
+class _LikeButtonState extends State<_LikeButton>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 260),
@@ -175,7 +180,9 @@ class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderState
   Widget build(BuildContext context) {
     return _RailAction(
       icon: widget.isLiked ? Icons.favorite : Icons.favorite_border,
-      iconColor: widget.isLiked ? AppColors.electricRose : AppColors.textPrimary,
+      iconColor: widget.isLiked
+          ? AppColors.electricRose
+          : AppColors.textPrimary,
       label: formatCount(widget.count),
       onPressed: _handleTap,
       scale: _scale,
@@ -224,10 +231,10 @@ class _WhatsAppShareButton extends StatelessWidget {
             Text(
               'Share',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
-                  ),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
+              ),
             ),
           ],
         ),
@@ -272,15 +279,18 @@ class _RailAction extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (scale != null) ScaleTransition(scale: scale!, child: glyph) else glyph,
+            if (scale != null)
+              ScaleTransition(scale: scale!, child: glyph)
+            else
+              glyph,
             const SizedBox(height: 5),
             Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
-                  ),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
+              ),
             ),
           ],
         ),

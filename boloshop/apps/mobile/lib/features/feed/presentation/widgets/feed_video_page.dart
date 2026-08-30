@@ -63,7 +63,9 @@ class _FeedVideoPageState extends State<FeedVideoPage> {
 
   Future<void> _attach() async {
     final url = widget.item.hlsStreamUrl;
-    if (url == null || url.isEmpty || _controller != null || _isInitialising) return;
+    if (url == null || url.isEmpty || _controller != null || _isInitialising) {
+      return;
+    }
 
     setState(() {
       _isInitialising = true;
@@ -114,7 +116,9 @@ class _FeedVideoPageState extends State<FeedVideoPage> {
     final controller = _controller;
     if (controller == null) return;
 
-    unawaited(controller.value.isPlaying ? controller.pause() : controller.play());
+    unawaited(
+      controller.value.isPlaying ? controller.pause() : controller.play(),
+    );
     // Rebuild so any play/pause affordance reflects the new state.
     setState(() {});
   }
@@ -142,7 +146,11 @@ class _FeedVideoPageState extends State<FeedVideoPage> {
                 ),
               )
             else
-              _Poster(item: widget.item, pageIndex: widget.pageIndex, failed: _failed),
+              _Poster(
+                item: widget.item,
+                pageIndex: widget.pageIndex,
+                failed: _failed,
+              ),
             if (_isInitialising)
               const Center(
                 child: SizedBox(
@@ -163,7 +171,11 @@ class _FeedVideoPageState extends State<FeedVideoPage> {
 
 /// What a page shows before — or instead of — its video.
 class _Poster extends StatelessWidget {
-  const _Poster({required this.item, required this.pageIndex, required this.failed});
+  const _Poster({
+    required this.item,
+    required this.pageIndex,
+    required this.failed,
+  });
 
   final FeedItem item;
   final int pageIndex;
@@ -178,7 +190,9 @@ class _Poster extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              failed ? Icons.wifi_off_rounded : Icons.play_circle_outline_rounded,
+              failed
+                  ? Icons.wifi_off_rounded
+                  : Icons.play_circle_outline_rounded,
               size: 58,
               color: AppColors.textPrimary.withValues(alpha: 0.28),
             ),
@@ -191,9 +205,9 @@ class _Poster extends StatelessWidget {
                     : item.storeName,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textPrimary.withValues(alpha: 0.5),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: AppColors.textPrimary.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

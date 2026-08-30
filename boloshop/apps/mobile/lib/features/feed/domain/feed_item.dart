@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/utils/pkr.dart';
+
 /// One full-screen page of the feed: a seller's live video and the product
 /// they are selling in it.
 @immutable
 class FeedItem {
   const FeedItem({
     required this.id,
+    required this.sellerId,
     required this.productTitle,
     required this.fabricSpecs,
     required this.soloPricePkr,
@@ -23,6 +26,10 @@ class FeedItem {
   });
 
   final String id;
+
+  /// The seller's UUID, not the owning user's. The order service takes this
+  /// as `seller_id` and resolves the store's phone number from it.
+  final String sellerId;
 
   final String productTitle;
 
@@ -52,13 +59,18 @@ class FeedItem {
   final bool isLiked;
   final bool isFollowing;
 
-  FeedItem copyWith({
-    int? likeCount,
-    bool? isLiked,
-    bool? isFollowing,
-  }) =>
+  /// The discount a team purchase unlocks, derived from the two prices rather
+  /// than stored separately, so it can never disagree with what the card
+  /// shows. Clamped to the 20–30% band the order service enforces.
+  int get teamDiscountPct {
+    final pct = savingPercent(from: soloPricePkr, to: teamPricePkr) ?? 25;
+    return pct.clamp(20, 30);
+  }
+
+  FeedItem copyWith({int? likeCount, bool? isLiked, bool? isFollowing}) =>
       FeedItem(
         id: id,
+        sellerId: sellerId,
         productTitle: productTitle,
         fabricSpecs: fabricSpecs,
         soloPricePkr: soloPricePkr,
@@ -85,6 +97,7 @@ class FeedItem {
     final soloPrice = json['price_pkr'] as String? ?? '0';
     return FeedItem(
       id: json['id'] as String? ?? '',
+      sellerId: json['seller_id'] as String? ?? '',
       productTitle: json['title'] as String? ?? '',
       fabricSpecs: json['description_urdu'] as String? ?? '',
       soloPricePkr: soloPrice,

@@ -21,6 +21,7 @@ class _FakeRepository implements FeedRepository {
 
 const _remoteItem = FeedItem(
   id: 'remote-1',
+  sellerId: 'bbbbbbbb-0000-0000-0000-000000000001',
   productTitle: 'Remote Product',
   fabricSpecs: 'From the gateway',
   soloPricePkr: '1000.00',
@@ -44,7 +45,9 @@ ProviderContainer containerWith(FeedRepository repository) {
 
 void main() {
   test('starts on sample content so the first frame is never empty', () {
-    final container = containerWith(_FakeRepository(items: const [_remoteItem]));
+    final container = containerWith(
+      _FakeRepository(items: const [_remoteItem]),
+    );
     final initial = container.read(feedControllerProvider);
 
     expect(initial.items, isNotEmpty);
@@ -53,7 +56,9 @@ void main() {
   });
 
   test('replaces the samples once the gateway answers', () async {
-    final container = containerWith(_FakeRepository(items: const [_remoteItem]));
+    final container = containerWith(
+      _FakeRepository(items: const [_remoteItem]),
+    );
     container.read(feedControllerProvider);
 
     await container.read(feedControllerProvider.notifier).refresh();
@@ -63,31 +68,38 @@ void main() {
     expect(state.errorMessage, isNull);
   });
 
-  test('keeps the samples and says so when the gateway is unreachable', () async {
-    final container = containerWith(_FakeRepository(fails: true));
-    container.read(feedControllerProvider);
+  test(
+    'keeps the samples and says so when the gateway is unreachable',
+    () async {
+      final container = containerWith(_FakeRepository(fails: true));
+      container.read(feedControllerProvider);
 
-    await container.read(feedControllerProvider.notifier).refresh();
+      await container.read(feedControllerProvider.notifier).refresh();
 
-    final state = container.read(feedControllerProvider);
-    expect(state.items.first.id, sampleFeed.first.id);
-    // The UI must be able to tell the user these are not real products.
-    expect(state.errorMessage, isNotNull);
-    expect(state.isLoading, isFalse);
-  });
+      final state = container.read(feedControllerProvider);
+      expect(state.items.first.id, sampleFeed.first.id);
+      // The UI must be able to tell the user these are not real products.
+      expect(state.errorMessage, isNotNull);
+      expect(state.isLoading, isFalse);
+    },
+  );
 
-  test('an empty catalog falls back to the samples rather than a blank feed',
-      () async {
-    final container = containerWith(_FakeRepository(items: const []));
-    container.read(feedControllerProvider);
+  test(
+    'an empty catalog falls back to the samples rather than a blank feed',
+    () async {
+      final container = containerWith(_FakeRepository(items: const []));
+      container.read(feedControllerProvider);
 
-    await container.read(feedControllerProvider.notifier).refresh();
+      await container.read(feedControllerProvider.notifier).refresh();
 
-    expect(container.read(feedControllerProvider).items, isNotEmpty);
-  });
+      expect(container.read(feedControllerProvider).items, isNotEmpty);
+    },
+  );
 
   test('toggleLike moves the count by exactly one, both ways', () async {
-    final container = containerWith(_FakeRepository(items: const [_remoteItem]));
+    final container = containerWith(
+      _FakeRepository(items: const [_remoteItem]),
+    );
     container.read(feedControllerProvider);
     await container.read(feedControllerProvider.notifier).refresh();
 

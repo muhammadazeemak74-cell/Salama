@@ -21,7 +21,10 @@ String formatPkrDigits(String amount) {
   final whole = dot == -1 ? trimmed : trimmed.substring(0, dot);
   final fraction = dot == -1 ? '' : trimmed.substring(dot + 1);
 
-  if (whole.isEmpty || !whole.split('').every((c) => c.compareTo('0') >= 0 && c.compareTo('9') <= 0)) {
+  if (whole.isEmpty ||
+      !whole
+          .split('')
+          .every((c) => c.compareTo('0') >= 0 && c.compareTo('9') <= 0)) {
     return trimmed;
   }
 
@@ -32,7 +35,9 @@ String formatPkrDigits(String amount) {
   }
 
   // Trailing ".00" is noise on a price tag; anything else is the price.
-  final padded = fraction.padRight(2, '0').substring(0, fraction.isEmpty ? 0 : 2);
+  final padded = fraction
+      .padRight(2, '0')
+      .substring(0, fraction.isEmpty ? 0 : 2);
   if (padded.isEmpty || padded == '00') return grouped.toString();
   return '${grouped.toString()}.$padded';
 }

@@ -37,12 +37,11 @@ abstract final class AppTheme {
     // Inter carries Urdu-adjacent Latin transliteration and long product names
     // at small sizes better than the platform defaults, and it ships a real
     // 800 weight for the price row.
-    final textTheme = GoogleFonts.interTextTheme(
-      ThemeData.dark().textTheme,
-    ).apply(
-      bodyColor: AppColors.textPrimary,
-      displayColor: AppColors.textPrimary,
-    );
+    final textTheme = GoogleFonts.interTextTheme(ThemeData.dark().textTheme)
+        .apply(
+          bodyColor: AppColors.textPrimary,
+          displayColor: AppColors.textPrimary,
+        );
 
     return ThemeData(
       useMaterial3: true,

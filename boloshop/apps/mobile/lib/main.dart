@@ -40,9 +40,7 @@ class BoloShopApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
       initialRoute: FeedScreen.routeName,
-      routes: {
-        FeedScreen.routeName: (_) => const FeedScreen(),
-      },
+      routes: {FeedScreen.routeName: (_) => const FeedScreen()},
       // Named routes will grow to product detail, checkout and team-buy; an
       // unknown one lands somewhere honest rather than on a red screen.
       onUnknownRoute: (settings) => MaterialPageRoute<void>(
@@ -55,7 +53,10 @@ class BoloShopApp extends StatelessWidget {
         final media = MediaQuery.of(context);
         return MediaQuery(
           data: media.copyWith(
-            textScaler: media.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.3),
+            textScaler: media.textScaler.clamp(
+              minScaleFactor: 0.9,
+              maxScaleFactor: 1.3,
+            ),
           ),
           child: child ?? const SizedBox.shrink(),
         );
@@ -79,8 +80,11 @@ class _RouteNotFound extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.explore_off_outlined,
-                  size: 44, color: AppColors.textTertiary),
+              const Icon(
+                Icons.explore_off_outlined,
+                size: 44,
+                color: AppColors.textTertiary,
+              ),
               const SizedBox(height: 14),
               Text(
                 'That screen does not exist yet.',
@@ -91,16 +95,16 @@ class _RouteNotFound extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   routeName!,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
+                  style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.textTertiary),
                 ),
               ],
               const SizedBox(height: 18),
               FilledButton(
-                onPressed: () => Navigator.of(context)
-                    .pushNamedAndRemoveUntil(FeedScreen.routeName, (route) => false),
+                onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                  FeedScreen.routeName,
+                  (route) => false,
+                ),
                 child: const Text('Back to the feed'),
               ),
             ],

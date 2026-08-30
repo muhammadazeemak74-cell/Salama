@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="boloshop"
+        android:label="BoloShop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -40,6 +40,17 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+
+        <!-- Required for url_launcher to open the wa.me confirmation and
+             invite links. From Android 11 (API 30) package visibility is
+             filtered: without this declaration the intent resolves to nothing
+             and the launch silently fails, which looks exactly like WhatsApp
+             not being installed.
+             https://developer.android.com/training/package-visibility -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>

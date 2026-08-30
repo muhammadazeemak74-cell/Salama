@@ -42,8 +42,10 @@ final feedRepositoryProvider = Provider<FeedRepository>(
 const List<FeedItem> sampleFeed = <FeedItem>[
   FeedItem(
     id: 'f1',
+    sellerId: 'aaaaaaaa-0000-0000-0000-000000000001',
     productTitle: '3-Piece Unstitched Lawn Suit — Summer Collection',
-    fabricSpecs: 'Pure lawn • Digital print shirt • Chiffon dupatta • Cambric trouser',
+    fabricSpecs:
+        'Pure lawn • Digital print shirt • Chiffon dupatta • Cambric trouser',
     soloPricePkr: '3500.00',
     teamPricePkr: '2450.00',
     storeName: 'Lahore Lawn House',
@@ -56,6 +58,7 @@ const List<FeedItem> sampleFeed = <FeedItem>[
   ),
   FeedItem(
     id: 'f2',
+    sellerId: 'aaaaaaaa-0000-0000-0000-000000000002',
     productTitle: 'Embroidered Chikankari Kurta',
     fabricSpecs: 'Cotton net • Hand chikankari • Full sleeves • Free delivery',
     soloPricePkr: '4200.00',
@@ -70,6 +73,7 @@ const List<FeedItem> sampleFeed = <FeedItem>[
   ),
   FeedItem(
     id: 'f3',
+    sellerId: 'aaaaaaaa-0000-0000-0000-000000000003',
     productTitle: 'Peshawari Chappal — Original Charsadda',
     fabricSpecs: 'Buffalo leather • Hand-stitched sole • Sizes 39–46 • COD',
     soloPricePkr: '5800.00',
@@ -84,8 +88,10 @@ const List<FeedItem> sampleFeed = <FeedItem>[
   ),
   FeedItem(
     id: 'f4',
+    sellerId: 'aaaaaaaa-0000-0000-0000-000000000004',
     productTitle: 'Wireless Earbuds — 40hr Battery',
-    fabricSpecs: 'ENC mic • Bluetooth 5.3 • Type-C • 7-day replacement warranty',
+    fabricSpecs:
+        'ENC mic • Bluetooth 5.3 • Type-C • 7-day replacement warranty',
     soloPricePkr: '2999.00',
     teamPricePkr: '2099.00',
     storeName: 'Gadget Bazaar',

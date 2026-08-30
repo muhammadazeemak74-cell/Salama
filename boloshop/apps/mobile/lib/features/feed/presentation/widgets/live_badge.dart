@@ -18,7 +18,8 @@ class LiveBadge extends StatefulWidget {
   State<LiveBadge> createState() => _LiveBadgeState();
 }
 
-class _LiveBadgeState extends State<LiveBadge> with SingleTickerProviderStateMixin {
+class _LiveBadgeState extends State<LiveBadge>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -56,11 +57,11 @@ class _LiveBadgeState extends State<LiveBadge> with SingleTickerProviderStateMix
           Text(
             'LIVE',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  height: 1,
-                ),
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              height: 1,
+            ),
           ),
           const SizedBox(width: 6),
           AnimatedBuilder(
@@ -74,8 +75,9 @@ class _LiveBadgeState extends State<LiveBadge> with SingleTickerProviderStateMix
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.liveDot
-                          .withValues(alpha: 0.2 + 0.6 * _pulse.value),
+                      color: AppColors.liveDot.withValues(
+                        alpha: 0.2 + 0.6 * _pulse.value,
+                      ),
                       blurRadius: 4 + 8 * _pulse.value,
                       spreadRadius: 1 + 3 * _pulse.value,
                     ),
@@ -88,10 +90,10 @@ class _LiveBadgeState extends State<LiveBadge> with SingleTickerProviderStateMix
           Text(
             formatCount(widget.viewerCount),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                ),
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
           ),
         ],
       ),

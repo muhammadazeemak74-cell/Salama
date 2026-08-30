@@ -18,7 +18,10 @@ enum ApiService {
 
 /// Base URLs for both services.
 class ApiEnvironment {
-  const ApiEnvironment({required this.gatewayBaseUrl, required this.orderServiceBaseUrl});
+  const ApiEnvironment({
+    required this.gatewayBaseUrl,
+    required this.orderServiceBaseUrl,
+  });
 
   final String gatewayBaseUrl;
   final String orderServiceBaseUrl;
@@ -55,9 +58,9 @@ class ApiEnvironment {
   }
 
   String baseUrlFor(ApiService service) => switch (service) {
-        ApiService.gateway => gatewayBaseUrl,
-        ApiService.orders => orderServiceBaseUrl,
-      };
+    ApiService.gateway => gatewayBaseUrl,
+    ApiService.orders => orderServiceBaseUrl,
+  };
 }
 
 /// A failure the app can show a user.
@@ -100,14 +103,17 @@ class ApiException implements Exception {
 /// here — timeouts, auth header, error translation — so no call site has to
 /// remember any of it.
 class ApiClient {
-  ApiClient({required ApiEnvironment environment, Dio? gatewayDio, Dio? ordersDio})
-      : _environment = environment,
-        _clients = {
-          ApiService.gateway:
-              gatewayDio ?? _buildDio(environment.gatewayBaseUrl),
-          ApiService.orders:
-              ordersDio ?? _buildDio(environment.orderServiceBaseUrl),
-        };
+  ApiClient({
+    required ApiEnvironment environment,
+    Dio? gatewayDio,
+    Dio? ordersDio,
+  }) : _environment = environment,
+       _clients = {
+         ApiService.gateway:
+             gatewayDio ?? _buildDio(environment.gatewayBaseUrl),
+         ApiService.orders:
+             ordersDio ?? _buildDio(environment.orderServiceBaseUrl),
+       };
 
   final ApiEnvironment _environment;
   final Map<ApiService, Dio> _clients;
@@ -123,20 +129,20 @@ class ApiClient {
   bool get isAuthenticated => _authToken != null;
 
   static Dio _buildDio(String baseUrl) => Dio(
-        BaseOptions(
-          baseUrl: baseUrl,
-          // Generous by desktop standards, deliberately: a 3G handover in
-          // Lahore routinely costs several seconds, and failing at 5s would
-          // mean retrying work the server already did.
-          connectTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30),
-          responseType: ResponseType.json,
-          headers: const {'Accept': 'application/json'},
-          // Non-2xx is handled by translating the body, not by throwing raw.
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
+    BaseOptions(
+      baseUrl: baseUrl,
+      // Generous by desktop standards, deliberately: a 3G handover in
+      // Lahore routinely costs several seconds, and failing at 5s would
+      // mean retrying work the server already did.
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
+      responseType: ResponseType.json,
+      headers: const {'Accept': 'application/json'},
+      // Non-2xx is handled by translating the body, not by throwing raw.
+      validateStatus: (status) => status != null && status < 500,
+    ),
+  );
 
   Dio dioFor(ApiService service) => _clients[service]!;
 
@@ -145,16 +151,14 @@ class ApiClient {
     ApiService service,
     String path, {
     Map<String, dynamic>? query,
-  }) =>
-      _send(service, 'GET', path, query: query);
+  }) => _send(service, 'GET', path, query: query);
 
   /// POST a JSON body, returning the decoded JSON object.
   Future<Map<String, dynamic>> post(
     ApiService service,
     String path, {
     Map<String, dynamic>? body,
-  }) =>
-      _send(service, 'POST', path, body: body);
+  }) => _send(service, 'POST', path, body: body);
 
   Future<Map<String, dynamic>> _send(
     ApiService service,
@@ -209,7 +213,9 @@ class ApiClient {
             if (detail is Map<String, dynamic>) {
               final path = detail['path'];
               final message = detail['message'];
-              if (path is String && message is String) fieldErrors[path] = message;
+              if (path is String && message is String) {
+                fieldErrors[path] = message;
+              }
             }
           }
         }

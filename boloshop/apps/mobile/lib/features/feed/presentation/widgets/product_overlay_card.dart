@@ -26,7 +26,10 @@ class ProductOverlayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final savings = savingPercent(from: item.soloPricePkr, to: item.teamPricePkr);
+    final savings = savingPercent(
+      from: item.soloPricePkr,
+      to: item.teamPricePkr,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -47,7 +50,9 @@ class ProductOverlayCard extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      item.sellerHandle.isEmpty ? item.storeName : item.sellerHandle,
+                      item.sellerHandle.isEmpty
+                          ? item.storeName
+                          : item.sellerHandle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.labelLarge?.copyWith(
@@ -170,14 +175,18 @@ class _CodChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.payments_outlined, size: 13, color: AppColors.textSecondary),
+          const Icon(
+            Icons.payments_outlined,
+            size: 13,
+            color: AppColors.textSecondary,
+          ),
           const SizedBox(width: 4),
           Text(
             'COD',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -295,7 +304,10 @@ class _CtaButton extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (leading != null) ...[
-                        Text(leading!, style: const TextStyle(fontSize: 13, height: 1)),
+                        Text(
+                          leading!,
+                          style: const TextStyle(fontSize: 13, height: 1),
+                        ),
                         const SizedBox(width: 4),
                       ],
                       Flexible(
