@@ -262,6 +262,28 @@ dev-mobile: ## Run the Flutter app against the local services
 		--dart-define=GATEWAY_BASE_URL=http://localhost:$(GATEWAY_PORT) \
 		--dart-define=ORDER_SERVICE_BASE_URL=http://localhost:$(ORDER_PORT)
 
+# The counterpart to `make dev`, for when it was started in another terminal
+# or left something behind. SIGTERM first so the services run their graceful
+# shutdown — draining in-flight requests and closing the pool — and SIGKILL
+# only for whatever ignores it.
+.PHONY: stop
+stop: ## Kill whatever is holding the dev ports
+	$(call require_tool,lsof,Install lsof, or stop the services from the terminal running `make dev`)
+	@pids=$$(lsof -ti:$(GATEWAY_PORT),$(MEDIA_PORT),$(ORDER_PORT) 2>/dev/null || true); \
+		if [ -z "$$pids" ]; then \
+			printf '  ports $(GATEWAY_PORT), $(MEDIA_PORT), $(ORDER_PORT) are already free\n'; \
+		else \
+			printf '  stopping: %s\n' "$$pids"; \
+			kill $$pids 2>/dev/null || true; \
+			sleep 2; \
+			remaining=$$(lsof -ti:$(GATEWAY_PORT),$(MEDIA_PORT),$(ORDER_PORT) 2>/dev/null || true); \
+			if [ -n "$$remaining" ]; then \
+				printf '  still up after SIGTERM, forcing: %s\n' "$$remaining"; \
+				kill -9 $$remaining 2>/dev/null || true; \
+			fi; \
+			printf '  stopped\n'; \
+		fi
+
 .PHONY: health
 health: ## Curl every service's health endpoint
 	@printf '\n'

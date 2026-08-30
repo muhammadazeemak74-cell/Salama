@@ -28,7 +28,8 @@ make db-migrate                    # apply the schema
 make dev                           # all three services, Ctrl-C stops them all
 ```
 
-`make` on its own lists every target. `make health` curls all three services.
+`make` on its own lists every target. `make health` curls all three services,
+and `make stop` frees the ports if `make dev` is running in another terminal.
 
 | Target | Does |
 | --- | --- |
@@ -36,6 +37,7 @@ make dev                           # all three services, Ctrl-C stops them all
 | `make test` | Runs every test suite |
 | `make db-migrate` | Applies pending Postgres migrations |
 | `make dev` | Gateway :4000, media :4001, order :4002 |
+| `make stop` | Free those ports when `dev` was started elsewhere |
 | `make check` | typecheck + lint + test — what CI should run |
 
 Per-language variants (`build-go`, `test-mobile`, `dev-gateway`, …) let you work
