@@ -9,9 +9,9 @@ import { Router } from 'express';
 import { queryOne, queryRows } from '@boloshop/db';
 import { z } from 'zod';
 
-import { HttpError } from '../errors.js';
-import { authenticate, requireRole, requireUser } from '../middleware/auth.js';
-import { pkrAmountSchema, paginationSchema, parseOrThrow } from '../validation.js';
+import { HttpError } from '../errors.ts';
+import { authenticate, requireRole, requireUser } from '../middleware/auth.ts';
+import { pkrAmountSchema, paginationSchema, parseOrThrow } from '../validation.ts';
 
 export const productsRouter: Router = Router();
 

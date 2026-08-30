@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-import { HttpError } from './errors.js';
+import { HttpError } from './errors.ts';
 
 /**
  * PKR amount as a decimal string with at most two places. Money is a string

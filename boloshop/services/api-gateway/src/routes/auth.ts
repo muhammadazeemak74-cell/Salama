@@ -11,11 +11,11 @@ import { Router } from 'express';
 import { queryOne } from '@boloshop/db';
 import { z } from 'zod';
 
-import { config } from '../config.js';
-import { HttpError } from '../errors.js';
-import { signAuthToken, type UserRole } from '../middleware/auth.js';
-import { OtpCooldownError, issueOtp, verifyOtp } from '../otp-store.js';
-import { parseOrThrow, phoneNumberSchema } from '../validation.js';
+import { config } from '../config.ts';
+import { HttpError } from '../errors.ts';
+import { signAuthToken, type UserRole } from '../middleware/auth.ts';
+import { OtpCooldownError, issueOtp, verifyOtp } from '../otp-store.ts';
+import { parseOrThrow, phoneNumberSchema } from '../validation.ts';
 
 export const authRouter: Router = Router();
 

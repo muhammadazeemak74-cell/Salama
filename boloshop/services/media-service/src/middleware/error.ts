@@ -4,8 +4,8 @@
 
 import type { NextFunction, Request, Response } from 'express';
 
-import { config } from '../config.js';
-import { HttpError, type ErrorBody } from '../errors.js';
+import { config } from '../config.ts';
+import { HttpError, type ErrorBody } from '../errors.ts';
 
 export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {
   next(HttpError.notFound(`No route for ${req.method} ${req.path}.`));

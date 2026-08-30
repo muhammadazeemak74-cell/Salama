@@ -15,23 +15,23 @@ import { ping } from '@boloshop/db';
 import multer from 'multer';
 import { z } from 'zod';
 
-import { config } from '../config.js';
-import { HttpError } from '../errors.js';
+import { config } from '../config.ts';
+import { HttpError } from '../errors.ts';
 import {
   FfmpegRenderError,
   FfmpegUnavailableError,
   probeFfmpeg,
   renderPromoVideo,
-} from '../services/ffmpeg.js';
+} from '../services/ffmpeg.ts';
 import {
   InsufficientCreditsError,
   deduct,
   findSeller,
   getBalance,
   refund,
-} from '../services/credits.js';
-import { createJob, getJob, markCompleted, markFailed, markRendering } from '../services/jobs.js';
-import { parseOrThrow, pkrAmountSchema } from '../validation.js';
+} from '../services/credits.ts';
+import { createJob, getJob, markCompleted, markFailed, markRendering } from '../services/jobs.ts';
+import { parseOrThrow, pkrAmountSchema } from '../validation.ts';
 
 export const videoRouter: Router = Router();
 

@@ -8,9 +8,9 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 
-import { config } from './config.js';
-import { errorHandler, notFoundHandler } from './middleware/error.js';
-import { videoRouter } from './routes/video.js';
+import { config } from './config.ts';
+import { errorHandler, notFoundHandler } from './middleware/error.ts';
+import { videoRouter } from './routes/video.ts';
 
 export function createApp(): Express {
   const app = express();

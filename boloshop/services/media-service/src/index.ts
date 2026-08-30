@@ -12,9 +12,9 @@ import type { Server } from 'node:http';
 
 import { closePool, ping } from '@boloshop/db';
 
-import { createApp } from './app.js';
-import { config } from './config.js';
-import { probeFfmpeg } from './services/ffmpeg.js';
+import { createApp } from './app.ts';
+import { config } from './config.ts';
+import { probeFfmpeg } from './services/ffmpeg.ts';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 

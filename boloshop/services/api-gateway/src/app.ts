@@ -9,11 +9,11 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 
-import { config } from './config.js';
-import { errorHandler, notFoundHandler } from './middleware/error.js';
-import { authRouter } from './routes/auth.js';
-import { healthRouter } from './routes/health.js';
-import { productsRouter } from './routes/products.js';
+import { config } from './config.ts';
+import { errorHandler, notFoundHandler } from './middleware/error.ts';
+import { authRouter } from './routes/auth.ts';
+import { healthRouter } from './routes/health.ts';
+import { productsRouter } from './routes/products.ts';
 
 export function createApp(): Express {
   const app = express();

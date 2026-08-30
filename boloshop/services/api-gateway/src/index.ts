@@ -9,8 +9,8 @@ import type { Server } from 'node:http';
 
 import { closePool, ping } from '@boloshop/db';
 
-import { createApp } from './app.js';
-import { config } from './config.js';
+import { createApp } from './app.ts';
+import { config } from './config.ts';
 
 /** How long a shutdown may take before the process is killed anyway. */
 const SHUTDOWN_TIMEOUT_MS = 10_000;

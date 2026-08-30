@@ -9,8 +9,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 
-import { config } from '../config.js';
-import { HttpError } from '../errors.js';
+import { config } from '../config.ts';
+import { HttpError } from '../errors.ts';
 
 export const USER_ROLES = ['buyer', 'seller', 'admin'] as const;
 export type UserRole = (typeof USER_ROLES)[number];

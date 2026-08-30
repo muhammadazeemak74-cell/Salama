@@ -11,7 +11,7 @@
 
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 
-import { config } from './config.js';
+import { config } from './config.ts';
 
 interface Challenge {
   /** SHA-256 of the code. Never keep the plaintext at rest. */

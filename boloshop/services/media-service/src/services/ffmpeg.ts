@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { config } from '../config.js';
+import { config } from '../config.ts';
 
 // ---------------------------------------------------------------------------
 // Binary probing

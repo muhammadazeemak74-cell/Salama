@@ -7,8 +7,8 @@
 
 import type { NextFunction, Request, Response } from 'express';
 
-import { config } from '../config.js';
-import { HttpError, type ErrorBody } from '../errors.js';
+import { config } from '../config.ts';
+import { HttpError, type ErrorBody } from '../errors.ts';
 
 /** 404 for anything no route claimed. Mount after all routes. */
 export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {

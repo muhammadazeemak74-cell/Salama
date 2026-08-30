@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-import { HttpError } from './errors.js';
+import { HttpError } from './errors.ts';
 
 /**
  * E.164, as stored in the database: a leading +, then 8–15 digits.

@@ -22,7 +22,7 @@
 
 import { queryOne } from '@boloshop/db';
 
-import { config } from '../config.js';
+import { config } from '../config.ts';
 
 const balances = new Map<string, number>();
 
