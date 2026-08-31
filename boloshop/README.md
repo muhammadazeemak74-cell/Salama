@@ -14,19 +14,24 @@ See `CLAUDE.md` for the architecture and the constraints behind it.
 | `services/api-gateway` | Express + TypeScript — auth, catalog, media |
 | `services/media-service` | Node + FFmpeg — renders 15s vertical promo videos |
 | `services/order-service` | Go — orders, COD tracking, team purchases |
-| `packages/db` | PostgreSQL schema, migrations, shared pool helper |
+| `packages/db` | PostgreSQL schema, migrations, shared Postgres and Redis helpers |
 
-The three services share one Postgres schema, defined once in `packages/db`.
+The three services share one Postgres schema, defined once in `packages/db`,
+and one Redis for the state every pod has to agree on.
 
 ## Getting started
 
 ```bash
 make install                       # npm + go mod + flutter pub get
+redis-server --port 6379 --daemonize yes
 export DATABASE_URL=postgres://boloshop:boloshop@localhost:5432/boloshop
 export JWT_SECRET=$(openssl rand -base64 48)
 make db-migrate                    # apply the schema
 make dev                           # all three services, Ctrl-C stops them all
 ```
+
+`REDIS_URL` defaults to `redis://localhost:6379`, so a local Redis needs no
+configuration. Point `REDIS_CLUSTER_NODES` at seed nodes for cluster mode.
 
 `make` on its own lists every target. `make health` curls all three services,
 and `make stop` frees the ports if `make dev` is running in another terminal.
@@ -50,9 +55,35 @@ Override a toolchain path if it is not on `PATH`:
 make build FLUTTER=/opt/flutter/bin/flutter
 ```
 
+## What lives where
+
+**PostgreSQL** holds the relational record: users, sellers, the catalog, orders
+and team purchases.
+
+**Redis** holds the state that has to be identical on every pod, and would be
+wrong the moment a second one started:
+
+| Key | Written by | Why it cannot be in memory |
+| --- | --- | --- |
+| `otp:<phone>` | api-gateway | A code issued by one pod is verified by another |
+| `seller:credits:<id>` | media-service | One credit must not buy two concurrent renders |
+
+Both are read-modify-write, so both run as Lua scripts — Redis executes a
+script to completion before anything else, which is what makes the attempt
+counter and the balance check safe across pods. OTP challenges are written with
+`SETEX`, so Redis itself enforces the five-minute lifetime and there is no
+sweeper in the service to get wrong.
+
+Redis is the system of record for credit balances, so it needs persistence
+(AOF, or RDB at a cadence you can afford to lose renders across). It is not a
+ledger — there is no history of who spent what. A `seller_video_credits` table
+deducted in the same transaction as the booking is the eventual home; Redis
+makes the counter correct across pods, not auditable.
+
 ## Requirements
 
-Node 20+, Go 1.24+, PostgreSQL 14+, and — for the app — the Flutter SDK.
+Node 20+, Go 1.24+, PostgreSQL 14+, Redis 6+, and — for the app — the Flutter
+SDK.
 `media-service` additionally needs the `ffmpeg` binary on the host; without it
 the service still starts and reports the gap on `/health`, and render requests
 return a 503 that names what is missing.
@@ -72,6 +103,13 @@ test` for the order service, and `flutter test` for the app.
 Jest compiles the sources to CommonJS for tests (`tsconfig.test.json` in each
 service) rather than using Jest's experimental ESM support. ts-jest type-checks
 every test file, so a test that misuses an API fails to compile.
+
+**Both Jest suites need a running Redis** on `redis://localhost:6379`; they use
+database 15 and their own key prefixes, so they stay clear of local data and of
+each other. What is under test is Lua running inside Redis — the attempt
+counter, the resend cooldown, the atomic credit check — and no in-memory double
+runs that, so the suites talk to a real server and fail with instructions if
+one is not there.
 
 `@boloshop/db` has no unit tests: it is the migration runner and the connection
 pool, both of which need a real Postgres. `make db-migrate` against a live

@@ -14,3 +14,10 @@ process.env.NODE_ENV ??= 'test';
 process.env.OTP_TTL_SECONDS ??= '300';
 process.env.OTP_MAX_ATTEMPTS ??= '5';
 process.env.OTP_RESEND_COOLDOWN_SECONDS ??= '60';
+
+// The OTP store is Redis-backed, so these tests need a real server — the Lua
+// scripts are the thing under test and no in-memory double runs them. Database
+// 15 and a key prefix keep the suite clear of anything else on a developer's
+// local Redis, including the media-service suite.
+process.env.REDIS_URL ??= 'redis://localhost:6379/15';
+process.env.REDIS_KEY_PREFIX ??= 'test:gateway:';

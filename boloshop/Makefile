@@ -233,6 +233,8 @@ db-psql: ## Open psql against DATABASE_URL
 dev: ## Run gateway (4000), media (4001) and order (4002) together
 	$(call require_env,DATABASE_URL,Set it to your Postgres connection string — see packages/db/.env.example)
 	$(call require_env,JWT_SECRET,The gateway refuses to start without it. Generate one: openssl rand -base64 48)
+	@command -v redis-cli >/dev/null 2>&1 && redis-cli -u "$${REDIS_URL:-redis://localhost:6379}" ping >/dev/null 2>&1 \
+		|| printf '\n\033[1;33m  warning\033[0m: Redis did not answer on %s.\n         The gateway holds OTP challenges there and will refuse to start.\n         Start one with: redis-server --port 6379 --daemonize yes\n' "$${REDIS_URL:-redis://localhost:6379}"
 	$(call banner,building @boloshop/db first)
 	$(NPM) run build --workspace @boloshop/db
 	@printf '\n\033[1;36m==> gateway :$(GATEWAY_PORT)  media :$(MEDIA_PORT)  order :$(ORDER_PORT)   (Ctrl-C stops all)\033[0m\n\n'
@@ -290,9 +292,14 @@ health: ## Curl every service's health endpoint
 		"http://localhost:$(GATEWAY_PORT)/health" \
 		"http://localhost:$(MEDIA_PORT)/api/v1/media/health" \
 		"http://localhost:$(ORDER_PORT)/health"; do \
-			code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$$url" || echo "---"); \
+			code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$$url" 2>/dev/null || true); \
+			if [ -z "$$code" ] || [ "$$code" = "000" ]; then code="---"; fi; \
 			printf '  %-48s %s\n' "$$url" "$$code"; \
 		done
+	@redis=$${REDIS_URL:-redis://localhost:6379}; \
+		if command -v redis-cli >/dev/null 2>&1; then \
+			printf '  %-48s %s\n' "$$redis" "$$(redis-cli -u "$$redis" ping 2>/dev/null || echo '---')"; \
+		fi
 	@printf '\n'
 
 # ---------------------------------------------------------------------------

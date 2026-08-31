@@ -1,30 +1,31 @@
 /**
- * Seller AI-video credits.
+ * Seller AI-video credits, in Redis.
  *
- * The seller lookup is real — the id is checked against the `sellers` table
- * through @boloshop/db, so a render cannot be booked against a store that does
- * not exist. The BALANCE is mocked: there is no credits column in the schema
- * yet, so balances live in memory and start at MOCK_VIDEO_CREDITS_PER_SELLER.
+ * The balance lives in Redis rather than in a process's memory because a
+ * render can be booked by any pod: a seller with one credit left must not be
+ * able to start two renders by hitting two pods at once.
  *
- * Replacing the mock means one migration and this one file:
+ * The seller lookup is still Postgres — `sellers` is relational data — and is
+ * unchanged. What moved is the counter.
  *
- *   CREATE TABLE seller_video_credits (
- *     seller_id  UUID PRIMARY KEY REFERENCES sellers (id) ON DELETE CASCADE,
- *     balance    INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
- *     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
- *   );
- *
- * and then `deduct` becomes a single guarded UPDATE inside a transaction:
- * `UPDATE … SET balance = balance - $2 WHERE seller_id = $1 AND balance >= $2`,
- * whose row count tells you whether the seller could afford it. Until then
- * this is per-process and forgets everything on restart.
+ * NOTE ON DURABILITY. Redis is the system of record for this balance, so it
+ * needs persistence turned on (AOF, or RDB at a cadence you can afford to lose
+ * renders across). It is still not a ledger: there is no history of who spent
+ * what. Deducting against a `seller_video_credits` table in the same
+ * transaction as the render booking is the eventual home for this; Redis makes
+ * it correct across pods, not auditable.
  */
 
-import { queryOne } from '@boloshop/db';
+import { getRedis, queryOne } from '@boloshop/db';
 
 import { config } from '../config.ts';
 
-const balances = new Map<string, number>();
+/** One key per seller. */
+const KEY_PREFIX = 'seller:credits:';
+
+function keyFor(sellerId: string): string {
+  return `${KEY_PREFIX}${sellerId}`;
+}
 
 export interface SellerCredits {
   sellerId: string;
@@ -42,8 +43,60 @@ export async function findSeller(
   );
 }
 
-export function getBalance(sellerId: string): number {
-  return balances.get(sellerId) ?? config.credits.mockPerSeller;
+/**
+ * Seed a seller's balance on first sight, then read it.
+ *
+ * SET NX is the seeding step: the first pod to ask creates the key, and every
+ * later one leaves it alone. Doing this as GET-then-SET in Node would let two
+ * pods both seed and one silently overwrite a balance the other had already
+ * spent from.
+ */
+const READ_SCRIPT = `
+redis.call('SET', KEYS[1], ARGV[1], 'NX')
+return redis.call('GET', KEYS[1])
+`;
+
+/**
+ * Spend `cost` credits, or refuse.
+ *
+ * The check and the DECRBY are one script so they cannot interleave: without
+ * that, two concurrent renders both read "1 credit left", both decide they can
+ * afford it, and the balance ends at -1 with two renders running.
+ *
+ * Returns [1, remaining] on success, [0, balance] when there are not enough.
+ */
+const DEDUCT_SCRIPT = `
+redis.call('SET', KEYS[1], ARGV[2], 'NX')
+
+local balance = tonumber(redis.call('GET', KEYS[1]))
+local cost = tonumber(ARGV[1])
+
+if balance == nil then
+  balance = 0
+end
+
+if balance < cost then
+  return {0, balance}
+end
+
+local remaining = redis.call('DECRBY', KEYS[1], cost)
+return {1, remaining}
+`;
+
+async function runScript(
+  script: string,
+  key: string,
+  args: (string | number)[],
+): Promise<unknown> {
+  return getRedis().eval(script, 1, key, ...args);
+}
+
+/** The seller's current balance, seeding the starting allowance if unset. */
+export async function getBalance(sellerId: string): Promise<number> {
+  const raw = await runScript(READ_SCRIPT, keyFor(sellerId), [
+    config.credits.startingBalance,
+  ]);
+  return Number.parseInt(String(raw), 10);
 }
 
 export class InsufficientCreditsError extends Error {
@@ -67,23 +120,62 @@ export class InsufficientCreditsError extends Error {
  * Deduct before rendering, not after: a render costs real CPU, so the credit
  * has to be spent up front. `refund` puts it back if the render fails.
  */
-export function deduct(sellerId: string, cost = config.credits.costPerRender): number {
-  const balance = getBalance(sellerId);
-  if (balance < cost) throw new InsufficientCreditsError(balance, cost);
+export async function deduct(
+  sellerId: string,
+  cost = config.credits.costPerRender,
+): Promise<number> {
+  const reply = (await runScript(DEDUCT_SCRIPT, keyFor(sellerId), [
+    cost,
+    config.credits.startingBalance,
+  ])) as [number, number];
 
-  const remaining = balance - cost;
-  balances.set(sellerId, remaining);
-  return remaining;
+  const [ok, balance] = reply;
+  if (ok !== 1) throw new InsufficientCreditsError(Number(balance), cost);
+
+  return Number(balance);
 }
 
-/** Return credits after a failed render. The seller should not pay for a crash. */
-export function refund(sellerId: string, cost = config.credits.costPerRender): number {
-  const restored = getBalance(sellerId) + cost;
-  balances.set(sellerId, restored);
-  return restored;
+/**
+ * Return credits after a failed render. The seller should not pay for a crash.
+ *
+ * INCRBY is atomic on its own, so this needs no script.
+ */
+export async function refund(
+  sellerId: string,
+  cost = config.credits.costPerRender,
+): Promise<number> {
+  return getRedis().incrby(keyFor(sellerId), cost);
 }
 
-/** Test hook. */
-export function resetCredits(): void {
-  balances.clear();
+/**
+ * Set a seller's balance outright — for a top-up, or to reset one in a test.
+ */
+export async function setBalance(sellerId: string, balance: number): Promise<void> {
+  await getRedis().set(keyFor(sellerId), String(balance));
+}
+
+/**
+ * Drop every stored balance, so the next read reseeds the allowance.
+ *
+ * Scans its own namespace rather than flushing the database: OTP challenges
+ * live in the same Redis.
+ */
+export async function resetCredits(): Promise<void> {
+  const redis = getRedis();
+  const keyPrefix = process.env.REDIS_KEY_PREFIX ?? '';
+  const pattern = `${keyPrefix}${KEY_PREFIX}*`;
+
+  let cursor = '0';
+  do {
+    const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+    cursor = next;
+    if (keys.length > 0) {
+      // SCAN returns fully-qualified names; ioredis re-applies keyPrefix to the
+      // keys of commands it sends, so it comes back off before the delete.
+      const unprefixed = keys.map((key) =>
+        keyPrefix && key.startsWith(keyPrefix) ? key.slice(keyPrefix.length) : key,
+      );
+      await redis.pipeline(unprefixed.map((key) => ['unlink', key])).exec();
+    }
+  } while (cursor !== '0');
 }

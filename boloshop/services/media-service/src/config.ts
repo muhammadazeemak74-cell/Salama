@@ -100,8 +100,14 @@ export const config = {
   publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, ''),
 
   credits: {
-    /** Starting balance in the mocked ledger. See services/credits.ts. */
-    mockPerSeller: intEnv('MOCK_VIDEO_CREDITS_PER_SELLER', 5),
+    /**
+     * What a seller starts with the first time Redis is asked about them.
+     * Seeded once per seller; a top-up writes the balance directly.
+     */
+    startingBalance: intEnv(
+      'VIDEO_CREDITS_STARTING_BALANCE',
+      intEnv('MOCK_VIDEO_CREDITS_PER_SELLER', 5),
+    ),
     costPerRender: intEnv('VIDEO_CREDIT_COST_PER_RENDER', 1),
   },
 } as const;

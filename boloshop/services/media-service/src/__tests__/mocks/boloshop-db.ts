@@ -1,11 +1,27 @@
 /**
- * Stub for @boloshop/db.
+ * Stand-in for @boloshop/db.
  *
- * The credit tests are about balance arithmetic, not SQL, so the seller lookup
- * is a function the test controls. Only the surface media-service actually
- * uses is stubbed; anything else it starts importing will fail loudly here,
- * which is the point.
+ * Two different jobs here. The Redis helpers are re-exported from the real
+ * source, because the credit balance genuinely lives in Redis and the Lua
+ * script is what these tests exist to check. The Postgres side is faked: the
+ * seller lookup is one SELECT, and standing up a database to assert that
+ * `findSeller` passes its argument through would test nothing.
+ *
+ * Mapping to the source (rather than the package) also sidesteps Jest's
+ * CommonJS runtime being unable to require the package's ESM build.
  */
+
+export {
+  DEFAULT_REDIS_URL,
+  closeRedis,
+  clusterNodesFromEnv,
+  connectRedis,
+  getRedis,
+  pingRedis,
+  redisOptionsFromEnv,
+  setRedisClient,
+  type RedisClient,
+} from '../../../../../packages/db/src/redis.ts';
 
 type QueryRow = Record<string, unknown>;
 

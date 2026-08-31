@@ -6,9 +6,10 @@
  * modules entirely, and nothing here uses `import.meta`, which is the one
  * construct that would force the ESM path.
  *
- * @boloshop/db is mapped to a stub. credits.ts imports it for the seller
- * lookup, and requiring the real package would mean these unit tests could
- * only run after `npm run build --workspace @boloshop/db`.
+ * @boloshop/db is mapped to a stub that re-exports the real Redis helpers and
+ * fakes only the Postgres side: credit balances are the thing under test and
+ * they live in Redis, while the seller lookup is a SQL query these tests have
+ * no interest in.
  *
  * @type {import('jest').Config}
  */

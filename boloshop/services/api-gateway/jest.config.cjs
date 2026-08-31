@@ -16,6 +16,13 @@ module.exports = {
   // JWT_SECRET has to exist before config.ts is imported, and config.ts is
   // imported transitively by nearly everything.
   setupFiles: ['<rootDir>/src/__tests__/setup-env.ts'],
+  moduleNameMapper: {
+    // @boloshop/db ships ESM, which Jest's CommonJS runtime cannot require.
+    // Pointing at its sources lets the same ts-jest transform handle it, and
+    // has the side benefit that these tests run against the real helper
+    // rather than a double.
+    '^@boloshop/db$': '<rootDir>/../../packages/db/src/index.ts',
+  },
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },

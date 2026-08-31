@@ -9,7 +9,7 @@
 
 import type { Server } from 'node:http';
 
-import { closePool, ping } from '@boloshop/db';
+import { closePool, closeRedis, connectRedis, ping } from '@boloshop/db';
 
 import { createApp } from './app.ts';
 import { config } from './config.ts';
@@ -49,6 +49,18 @@ async function reportDependencies(): Promise<void> {
       `[media-service] database unreachable: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+
+  // Redis holds the credit balances. Same posture as the database and FFmpeg:
+  // report the gap and let /health say so, rather than refusing to boot.
+  try {
+    await connectRedis();
+    console.info('[media-service] redis reachable');
+  } catch (error) {
+    console.warn(
+      `[media-service] redis unreachable: ${error instanceof Error ? error.message : String(error)}. ` +
+        'Renders will be rejected until it is back.',
+    );
+  }
 }
 
 async function main(): Promise<void> {
@@ -84,7 +96,7 @@ async function main(): Promise<void> {
       server.closeIdleConnections();
     });
 
-    await closePool();
+    await Promise.all([closePool(), closeRedis()]);
     console.info('[media-service] shutdown complete');
     process.exit(0);
   }
@@ -95,6 +107,9 @@ async function main(): Promise<void> {
 
 main().catch(async (error: unknown) => {
   console.error('[media-service] failed to start', error);
-  await closePool().catch(() => undefined);
+  await Promise.all([
+    closePool().catch(() => undefined),
+    closeRedis().catch(() => undefined),
+  ]);
   process.exit(1);
 });

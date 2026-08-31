@@ -11,7 +11,7 @@ import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { ping } from '@boloshop/db';
+import { ping, pingRedis } from '@boloshop/db';
 import multer from 'multer';
 import { z } from 'zod';
 
@@ -160,7 +160,7 @@ videoRouter.post('/render-promo', acceptImages, async (req, res) => {
 
     let remainingCredits: number;
     try {
-      remainingCredits = deduct(seller.id);
+      remainingCredits = await deduct(seller.id);
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {
         throw HttpError.paymentRequired(error.message);
@@ -202,7 +202,11 @@ videoRouter.post('/render-promo', acceptImages, async (req, res) => {
         console.info('[media] render complete', { job: job.id, ms: result.renderMs });
       } catch (error) {
         // The seller should not pay for our failure.
-        refund(seller.id);
+        await refund(seller.id).catch((refundError: unknown) => {
+          // A lost refund is a seller charged for a crash, so it is logged
+          // loudly rather than swallowed with the render failure.
+          console.error('[media] refund failed', { job: job.id, seller: seller.id, error: refundError });
+        });
 
         if (error instanceof FfmpegUnavailableError) {
           markFailed(job.id, { code: 'ffmpeg_unavailable', message: error.message });
@@ -246,7 +250,7 @@ videoRouter.post('/render-promo', acceptImages, async (req, res) => {
 // GET /jobs/:id
 // ---------------------------------------------------------------------------
 
-videoRouter.get('/jobs/:id', (req, res) => {
+videoRouter.get('/jobs/:id', async (req, res) => {
   const job = getJob(req.params.id);
   if (!job) throw HttpError.notFound(`No render job with id ${req.params.id}.`);
 
@@ -265,7 +269,7 @@ videoRouter.get('/jobs/:id', (req, res) => {
       ...(job.video ? { video: job.video } : {}),
       ...(job.error ? { error: job.error } : {}),
     },
-    credits_remaining: getBalance(job.sellerId),
+    credits_remaining: await getBalance(job.sellerId),
   });
 });
 
@@ -274,11 +278,14 @@ videoRouter.get('/jobs/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 
 videoRouter.get('/health', async (_req, res) => {
-  const [ffmpeg, databaseOk] = await Promise.all([
+  const [ffmpeg, databaseOk, redisOk] = await Promise.all([
     probeFfmpeg(),
     // Needed for the seller lookup on render-promo, but reported only —
     // rendering capability is what this endpoint's status code is about.
     ping().catch(() => false),
+    // Redis holds the credit balances, so a render cannot be booked without
+    // it. Reported for the same reason, and gating for the same one.
+    pingRedis().catch(() => false),
   ]);
 
   // Degraded, not down: the service is up and answering, it just cannot render
@@ -305,6 +312,7 @@ videoRouter.get('/health', async (_req, res) => {
         ...(ffmpeg.fontError ? { error: ffmpeg.fontError } : {}),
       },
       database: { status: databaseOk ? 'ok' : 'error' },
+      redis: { status: redisOk ? 'ok' : 'error' },
     },
     output: {
       width: config.video.width,

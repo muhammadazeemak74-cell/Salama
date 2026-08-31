@@ -60,12 +60,12 @@ interface UserRow {
  * Flutter team can build against this today. Wire an SMS gateway here — the
  * response shape does not change, the `dev_otp` field simply stops appearing.
  */
-authRouter.post('/request-otp', (req, res) => {
+authRouter.post('/request-otp', async (req, res) => {
   const { phone_number: phoneNumber } = parseOrThrow(requestOtpSchema, req.body);
 
   let issued;
   try {
-    issued = issueOtp(phoneNumber);
+    issued = await issueOtp(phoneNumber);
   } catch (error) {
     if (error instanceof OtpCooldownError) {
       res.set('Retry-After', error.retryAfterSeconds.toString());
@@ -103,7 +103,7 @@ authRouter.post('/verify-otp', async (req, res) => {
     language_preference: language,
   } = parseOrThrow(verifyOtpSchema, req.body);
 
-  const result = verifyOtp(phoneNumber, code);
+  const result = await verifyOtp(phoneNumber, code);
   if (!result.ok) {
     // One message for every failure mode: telling a caller whether a code
     // exists for a number, or how many guesses are left, is free information

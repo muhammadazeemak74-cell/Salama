@@ -202,3 +202,16 @@ export async function closePool(): Promise<void> {
 }
 
 export type { PoolClient, PoolConfig, QueryResult, QueryResultRow };
+
+// Redis: the shared state every pod has to agree on.
+export {
+  DEFAULT_REDIS_URL,
+  closeRedis,
+  clusterNodesFromEnv,
+  connectRedis,
+  getRedis,
+  pingRedis,
+  redisOptionsFromEnv,
+  setRedisClient,
+  type RedisClient,
+} from './redis.ts';

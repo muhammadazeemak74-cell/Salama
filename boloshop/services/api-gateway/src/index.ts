@@ -7,7 +7,7 @@
 
 import type { Server } from 'node:http';
 
-import { closePool, ping } from '@boloshop/db';
+import { closePool, closeRedis, connectRedis, ping } from '@boloshop/db';
 
 import { createApp } from './app.ts';
 import { config } from './config.ts';
@@ -20,6 +20,11 @@ async function main(): Promise<void> {
   // The pool is lazy, so this first call is also what opens it.
   await ping();
   console.info('[api-gateway] database reachable');
+
+  // Redis holds the OTP challenges, so no sign-in works without it. Same
+  // reasoning as the database: fail at boot, not on the first login attempt.
+  await connectRedis();
+  console.info('[api-gateway] redis reachable');
 
   const app = createApp();
 
@@ -53,7 +58,7 @@ async function main(): Promise<void> {
       server.closeIdleConnections();
     });
 
-    await closePool();
+    await Promise.all([closePool(), closeRedis()]);
     console.info('[api-gateway] shutdown complete');
     process.exit(0);
   }
@@ -64,6 +69,9 @@ async function main(): Promise<void> {
 
 main().catch(async (error: unknown) => {
   console.error('[api-gateway] failed to start', error);
-  await closePool().catch(() => undefined);
+  await Promise.all([
+    closePool().catch(() => undefined),
+    closeRedis().catch(() => undefined),
+  ]);
   process.exit(1);
 });

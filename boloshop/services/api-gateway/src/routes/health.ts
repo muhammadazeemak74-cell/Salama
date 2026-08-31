@@ -7,11 +7,17 @@
  */
 
 import { Router } from 'express';
-import { ping } from '@boloshop/db';
+import { ping, pingRedis } from '@boloshop/db';
 
 export const healthRouter: Router = Router();
 
 const startedAt = Date.now();
+
+interface DependencyCheck {
+  status: 'ok' | 'error';
+  latency_ms: number;
+  error?: string;
+}
 
 interface HealthBody {
   status: 'ok' | 'degraded';
@@ -19,42 +25,51 @@ interface HealthBody {
   timestamp: string;
   uptime_seconds: number;
   checks: {
-    database: {
-      status: 'ok' | 'error';
-      latency_ms: number;
-      error?: string;
-    };
+    database: DependencyCheck;
+    redis: DependencyCheck;
   };
 }
 
-healthRouter.get('/health', async (_req, res) => {
-  const startedCheck = process.hrtime.bigint();
-
-  let databaseOk = false;
-  let databaseError: string | undefined;
+/** Times one dependency probe and turns a throw into a reported error. */
+async function check(probe: () => Promise<boolean>): Promise<DependencyCheck> {
+  const started = process.hrtime.bigint();
   try {
-    databaseOk = await ping();
+    const ok = await probe();
+    return {
+      status: ok ? 'ok' : 'error',
+      latency_ms: elapsedMs(started),
+    };
   } catch (error) {
-    databaseError = error instanceof Error ? error.message : String(error);
+    return {
+      status: 'error',
+      latency_ms: elapsedMs(started),
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
+}
 
-  const latencyMs = Number(process.hrtime.bigint() - startedCheck) / 1_000_000;
+function elapsedMs(started: bigint): number {
+  return Math.round(Number(process.hrtime.bigint() - started) / 10_000) / 100;
+}
+
+healthRouter.get('/health', async (_req, res) => {
+  // Probed together: a health check that takes as long as the sum of its
+  // dependencies is the first thing to time out during an incident.
+  const [database, redis] = await Promise.all([check(ping), check(pingRedis)]);
+
+  // Both are required to serve a request: Postgres holds the catalog, Redis
+  // holds the OTP challenges that gate every sign-in.
+  const healthy = database.status === 'ok' && redis.status === 'ok';
 
   const body: HealthBody = {
-    status: databaseOk ? 'ok' : 'degraded',
+    status: healthy ? 'ok' : 'degraded',
     service: 'api-gateway',
     timestamp: new Date().toISOString(),
     uptime_seconds: Math.round((Date.now() - startedAt) / 1000),
-    checks: {
-      database: {
-        status: databaseOk ? 'ok' : 'error',
-        latency_ms: Math.round(latencyMs * 100) / 100,
-        ...(databaseError ? { error: databaseError } : {}),
-      },
-    },
+    checks: { database, redis },
   };
 
   // Health output is a point-in-time reading; never let a proxy cache it.
   res.set('Cache-Control', 'no-store');
-  res.status(databaseOk ? 200 : 503).json(body);
+  res.status(healthy ? 200 : 503).json(body);
 });
