@@ -17,15 +17,20 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.4.0",
-    "typescript": "^7.0.2"
+    "jest": "^30.5.0",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "prebuild": "npm run build -w @boloshop/db",
     "build": "tsc -p tsconfig.json",
     "pretypecheck": "npm run build -w @boloshop/db",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "clean": "rm -rf dist",
     "start": "node dist/index.js",
     "dev": "node --watch --experimental-strip-types src/index.ts"

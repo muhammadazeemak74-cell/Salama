@@ -131,16 +131,15 @@ mobile-ipa: ## Build for iOS without signing (needs Xcode, macOS only)
 test: test-ts test-go test-mobile ## Run every test suite
 	@printf '\n\033[1;32m==> tests complete\033[0m\n\n'
 
-# The TypeScript services have no test scripts yet. They were verified by hand
-# against live Postgres, FFmpeg and HTTP, but nothing here re-runs that, so
-# this target says so rather than passing silently and implying coverage.
+# Jest, via each workspace's own test script. @boloshop/db still has none —
+# its behaviour is the migration runner and the pool, both of which need a real
+# Postgres, so it is covered by `make db-migrate` against a live database
+# rather than by unit tests.
 .PHONY: test-ts
-test-ts: ## Run TypeScript tests (none defined yet — see the notice)
+test-ts: ## Run the api-gateway and media-service Jest suites
+	$(call require_tool,$(NPM),Install Node 20+ from https://nodejs.org)
 	$(call banner,TypeScript tests)
 	$(NPM) test
-	@printf '\n  \033[1;33mNOTE\033[0m: no npm workspace defines a "test" script.\n'
-	@printf '        @boloshop/db, api-gateway and media-service have no automated\n'
-	@printf '        tests; this target currently proves nothing about them.\n'
 
 .PHONY: test-go
 test-go: ## Run the order service tests

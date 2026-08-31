@@ -31,6 +31,7 @@ import {
   refund,
 } from '../services/credits.ts';
 import { createJob, getJob, markCompleted, markFailed, markRendering } from '../services/jobs.ts';
+import { discardFiles } from '../services/storage.ts';
 import { parseOrThrow, pkrAmountSchema } from '../validation.ts';
 
 export const videoRouter: Router = Router();
@@ -109,9 +110,7 @@ function acceptImages(req: Request, res: Response, next: NextFunction): void {
 }
 
 async function discardUploads(files: Express.Multer.File[]): Promise<void> {
-  await Promise.all(
-    files.map((file) => rm(file.path, { force: true }).catch(() => undefined)),
-  );
+  await discardFiles(files.map((file) => file.path));
 }
 
 // ---------------------------------------------------------------------------

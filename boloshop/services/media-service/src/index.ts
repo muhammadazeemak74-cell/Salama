@@ -7,7 +7,6 @@
  * useful than a pod that refuses to boot.
  */
 
-import { mkdir, rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
 
 import { closePool, ping } from '@boloshop/db';
@@ -15,24 +14,9 @@ import { closePool, ping } from '@boloshop/db';
 import { createApp } from './app.ts';
 import { config } from './config.ts';
 import { probeFfmpeg } from './services/ffmpeg.ts';
+import { ensureStorage } from './services/storage.ts';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
-
-/**
- * Create the upload and render directories, and clear the incoming one.
- *
- * `incoming/` holds only in-flight uploads and per-render scratch, which the
- * render path deletes when it finishes. Anything still there at boot belongs
- * to a render this process was killed in the middle of, so it is garbage —
- * and on a busy host it is garbage that accumulates until the disk fills.
- * Renders are never resumed across a restart, so nothing of value is lost.
- */
-async function ensureStorage(): Promise<void> {
-  await rm(config.storage.incoming, { recursive: true, force: true });
-  await mkdir(config.storage.incoming, { recursive: true });
-  await mkdir(config.storage.renders, { recursive: true });
-  console.info(`[media-service] storage ready at ${config.storage.root}`);
-}
 
 async function reportDependencies(): Promise<void> {
   const ffmpeg = await probeFfmpeg({ force: true });
@@ -69,6 +53,7 @@ async function reportDependencies(): Promise<void> {
 
 async function main(): Promise<void> {
   await ensureStorage();
+  console.info(`[media-service] storage ready at ${config.storage.root}`);
   await reportDependencies();
 
   const app = createApp();

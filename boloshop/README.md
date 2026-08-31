@@ -57,10 +57,22 @@ Node 20+, Go 1.24+, PostgreSQL 14+, and — for the app — the Flutter SDK.
 the service still starts and reports the gap on `/health`, and render requests
 return a 503 that names what is missing.
 
-## Testing status
+## Testing
 
-`make test` runs the Go and Flutter suites. **The three TypeScript packages
-have no automated tests** — they were verified by hand against live Postgres,
-FFmpeg and HTTP, but nothing re-runs that. `make test-ts` prints a notice
-saying so rather than passing silently. That is the largest known gap in this
-repository.
+`make test` runs all four suites: Jest for the two TypeScript services, `go
+test` for the order service, and `flutter test` for the app.
+
+| Suite | Covers |
+| --- | --- |
+| `api-gateway` (Jest) | OTP issue/verify/expiry/lockout, Zod schemas, JWT middleware and role gates |
+| `media-service` (Jest) | Zod schemas, credit deduction and refund-on-failure, scratch-disk cleanup |
+| `order-service` (Go) | Shipment state machine, E.164 and amount validation, PKR formatting, WhatsApp links, team-buy window |
+| `apps/mobile` (Flutter) | PKR formatting, feed state and filters, buy flows, rendered widgets |
+
+Jest compiles the sources to CommonJS for tests (`tsconfig.test.json` in each
+service) rather than using Jest's experimental ESM support. ts-jest type-checks
+every test file, so a test that misuses an API fails to compile.
+
+`@boloshop/db` has no unit tests: it is the migration runner and the connection
+pool, both of which need a real Postgres. `make db-migrate` against a live
+database is what exercises it.
