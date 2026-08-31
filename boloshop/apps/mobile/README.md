@@ -17,6 +17,8 @@ lib/features/feed/presentation/feed_controller.dart      Riverpod state
 lib/features/feed/presentation/screens/feed_screen.dart  the feed
 lib/features/feed/presentation/widgets/          badge, voice button, rail, card
 lib/core/session/session.dart                    who is signed in
+lib/core/session/token_store.dart                the JWT, in Keychain/Keystore
+lib/features/auth/                               phone login, OTP verify, session wiring
 lib/core/launcher/url_launcher_service.dart      opening external links
 lib/features/orders/                             buy flows, order models, share dialog
 lib/features/voice/                              Bolo search modal and its filters
@@ -47,6 +49,35 @@ looks exactly like the server being down.
 If the gateway is unreachable the feed falls back to four sample products and
 says so in a pill under the status bar, rather than pretending a hardcoded list
 is the catalog.
+
+## Signing in
+
+Phone number and a one-time code; there is no password anywhere in BoloShop.
+
+`phone_login_screen.dart` takes a Pakistani mobile with `+92` as a fixed
+prefix beside the field rather than inside it, formats keystrokes as
+`3XX XXXXXXX`, and converts to E.164 only on submit. The conversion accepts
+every form somebody actually types — `0300…`, `92300…`, `+92 300…`, or the bare
+`300…` — and refuses to guess at an incomplete one, because a half-typed number
+earns a 400 from the gateway that reads like a server fault. A leading `3` is
+required: Pakistani landlines are valid numbers that cannot receive an SMS.
+
+`otp_verify_screen.dart` is six boxes over a single hidden field, which keeps
+paste, backspace across boxes, and SMS autofill (`AutofillHints.oneTimeCode`)
+working — all three have to be rebuilt by hand in a six-controller version. It
+submits on the sixth digit rather than making someone reach for a button, and
+counts down 60 seconds before offering a resend, matching the cooldown the
+gateway enforces so the countdown cannot expire into a 429.
+
+`SessionController` owns the credential. The token is held in three places that
+must not drift apart — the in-memory session, the `Authorization` header on
+`ApiClient`, and secure storage — and every transition writes all three. It is
+persisted before it is applied: a token in memory that never reached storage
+would sign the user out on the next launch with no explanation.
+
+The session starts in a `restoring` state rather than `signedOut`. The
+difference decides whether the first frame bounces an already-signed-in user to
+the login screen.
 
 ## Buying
 
@@ -132,12 +163,9 @@ sends a different team price the badge follows it.
 
 ## Known gaps
 
-- **No auth flow, so no buyer id.** The gateway's OTP endpoints exist; the
-  screens that call them do not. Until then the buyer comes from
-  `--dart-define=DEMO_BUYER_ID=<uuid of a verified user>`, and without it both
-  buy buttons say "sign in" rather than sending an invented UUID that the order
-  service would reject with a confusing 404. `SessionController.signIn` is the
-  seam.
+- **`DEMO_BUYER_ID` is still honoured.** A build-time identity for exercising
+  order flows without an SMS provider; a real sign-in replaces it. It is not a
+  fallback for one.
 - **Speech capture is not wired up.** The voice sheet runs a scripted sequence
   over the real animation, state machine and filter logic, and is labelled
   "Demo" on screen. Only the recogniser has to be dropped in.

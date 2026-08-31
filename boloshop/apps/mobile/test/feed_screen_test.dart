@@ -1,6 +1,8 @@
 import 'package:boloshop/core/launcher/url_launcher_service.dart';
 import 'package:boloshop/core/session/session.dart';
+import 'package:boloshop/core/session/token_store.dart';
 import 'package:boloshop/core/theme/app_theme.dart';
+import 'package:boloshop/features/auth/presentation/screens/phone_login_screen.dart';
 import 'package:boloshop/features/feed/presentation/screens/feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +21,11 @@ Future<void> pumpFeed(
   await tester.pumpWidget(
     ProviderScope(
       overrides: overrides,
-      child: const MaterialApp(home: FeedScreen()),
+      // Named routes so the sign-in redirect has somewhere to land.
+      child: MaterialApp(
+        home: const FeedScreen(),
+        routes: {PhoneLoginScreen.routeName: (_) => const PhoneLoginScreen()},
+      ),
     ),
   );
   await tester.pump(const Duration(milliseconds: 100));
@@ -226,7 +232,7 @@ void main() {
   });
 
   group('buy actions', () {
-    testWidgets('solo buy without a session asks the buyer to sign in', (
+    testWidgets('solo buy without a session opens the sign-in screen', (
       tester,
     ) async {
       final launcher = RecordingLauncher();
@@ -234,6 +240,7 @@ void main() {
         tester,
         overrides: [
           urlLauncherProvider.overrideWithValue(launcher),
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           sessionProvider.overrideWith(_NoSession.new),
         ],
       );
@@ -242,31 +249,34 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.textContaining('Sign in to place an order'), findsOneWidget);
+      // Taken to sign-in rather than told to go find it.
+      expect(find.byType(PhoneLoginScreen), findsOneWidget);
       // Nothing was launched and no order was attempted.
       expect(launcher.launched, isEmpty);
     });
 
-    testWidgets('team buy without a session asks the buyer to sign in', (
+    testWidgets('team buy without a session opens the sign-in screen', (
       tester,
     ) async {
       await pumpFeed(
         tester,
-        overrides: [sessionProvider.overrideWith(_NoSession.new)],
+        overrides: [
+          tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+          sessionProvider.overrideWith(_NoSession.new),
+        ],
       );
 
       await tester.tap(find.text('Team Buy'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.textContaining('Sign in to place an order'), findsOneWidget);
+      expect(find.byType(PhoneLoginScreen), findsOneWidget);
     });
   });
 }
 
-/// A session with no buyer, which is the default build until the OTP flow
-/// exists.
+/// A session with nobody signed in, settled rather than still restoring.
 class _NoSession extends SessionController {
   @override
-  Session build() => const Session();
+  Session build() => const Session(status: SessionStatus.signedOut);
 }

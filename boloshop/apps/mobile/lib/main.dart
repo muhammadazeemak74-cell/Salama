@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/presentation/screens/phone_login_screen.dart';
 import 'features/feed/presentation/screens/feed_screen.dart';
 
 void main() {
@@ -40,7 +41,10 @@ class BoloShopApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
       initialRoute: FeedScreen.routeName,
-      routes: {FeedScreen.routeName: (_) => const FeedScreen()},
+      routes: {
+        FeedScreen.routeName: (_) => const FeedScreen(),
+        PhoneLoginScreen.routeName: (_) => const PhoneLoginScreen(),
+      },
       // Named routes will grow to product detail, checkout and team-buy; an
       // unknown one lands somewhere honest rather than on a red screen.
       onUnknownRoute: (settings) => MaterialPageRoute<void>(

@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:preload_page_view/preload_page_view.dart';
 
+import '../../../../core/session/session.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/pkr.dart';
+import '../../../auth/presentation/screens/phone_login_screen.dart';
 import '../../../orders/presentation/order_actions.dart';
 import '../../../orders/presentation/widgets/team_buy_dialog.dart';
 import '../../../voice/domain/voice_filter.dart';
@@ -66,7 +68,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   /// Every branch of [BuyOutcome] is handled here, including the ones that
   /// succeeded partially: an order that was placed but could not open WhatsApp
   /// still exists, and saying nothing would leave a buyer thinking it failed.
-  Future<void> _handleOutcome(BuyOutcome outcome, FeedItem item) async {
+  Future<void> _handleOutcome(
+    BuyOutcome outcome,
+    FeedItem item, {
+    Future<BuyOutcome> Function()? retry,
+  }) async {
     switch (outcome) {
       case BuyAlreadyInProgress():
         // A second tap while the first order is in flight. Silence is correct:
@@ -74,12 +80,21 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         return;
 
       case BuyNeedsSignIn():
-        _notify(
-          'Sign in to place an order. (No auth flow yet — run with '
-          '--dart-define=DEMO_BUYER_ID=<uuid>.)',
-          isError: true,
-          duration: const Duration(seconds: 5),
-        );
+        // Take them to the sign-in screen rather than telling them to find it.
+        // If they come back signed in, repeat the tap they made — being
+        // bounced through a login and then having to press Buy again is the
+        // kind of small tax that loses a sale.
+        //
+        // `retry` is the specific action they pressed, not a generic one:
+        // resuming a Team Buy with a solo order would quietly charge the full
+        // price and skip the invite.
+        if (!mounted) return;
+        await Navigator.of(context).pushNamed(PhoneLoginScreen.routeName);
+
+        if (!mounted || retry == null) return;
+        if (ref.read(sessionProvider).isAuthenticated) {
+          await _handleOutcome(await retry(), item);
+        }
 
       case BuyFailed(:final message):
         _notify(message, isError: true, duration: const Duration(seconds: 4));
@@ -110,12 +125,20 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   Future<void> _soloBuy(FeedItem item) async {
     final outcome = await ref.read(orderActionsProvider.notifier).soloBuy(item);
-    await _handleOutcome(outcome, item);
+    await _handleOutcome(
+      outcome,
+      item,
+      retry: () => ref.read(orderActionsProvider.notifier).soloBuy(item),
+    );
   }
 
   Future<void> _teamBuy(FeedItem item) async {
     final outcome = await ref.read(orderActionsProvider.notifier).teamBuy(item);
-    await _handleOutcome(outcome, item);
+    await _handleOutcome(
+      outcome,
+      item,
+      retry: () => ref.read(orderActionsProvider.notifier).teamBuy(item),
+    );
   }
 
   /// Opens the Bolo sheet and applies whatever filters come back.
