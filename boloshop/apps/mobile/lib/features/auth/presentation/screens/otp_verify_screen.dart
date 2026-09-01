@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/session/session.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../feed/presentation/screens/feed_screen.dart';
 import '../../domain/pakistan_phone.dart';
 
 /// Enter the six digits the gateway sent.
@@ -19,6 +20,7 @@ class OtpVerifyScreen extends ConsumerStatefulWidget {
     required this.phoneNumber,
     this.resendAfterSeconds = 60,
     this.devOtp,
+    this.replaceStackWithFeed = false,
     super.key,
   });
 
@@ -35,6 +37,17 @@ class OtpVerifyScreen extends ConsumerStatefulWidget {
   /// Outside production the gateway returns the code it generated, so the app
   /// can be driven without an SMS provider. Shown as a labelled hint.
   final String? devOtp;
+
+  /// Whether signing in has to put the feed on the stack itself.
+  ///
+  /// True when login was the app's entry point — a signed-out cold start —
+  /// because there is then nothing underneath to return to, and popping would
+  /// leave someone who just signed in staring at the login screen.
+  ///
+  /// False when login was pushed over the feed, where returning to it is both
+  /// correct and better: it keeps the product they were looking at, and lets
+  /// the buy they were part-way through resume.
+  final bool replaceStackWithFeed;
 
   @override
   ConsumerState<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
@@ -120,8 +133,18 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
           .verifyOtp(phoneNumber: widget.phoneNumber, code: code);
 
       if (!mounted) return;
-      // Back to whatever sent us here, now signed in.
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      final navigator = Navigator.of(context);
+
+      // The JWT is in secure storage and on the client by this point; all that
+      // is left is to land the person in the app.
+      if (widget.replaceStackWithFeed) {
+        await navigator.pushNamedAndRemoveUntil(
+          FeedScreen.routeName,
+          (route) => false,
+        );
+      } else {
+        navigator.popUntil((route) => route.isFirst);
+      }
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {

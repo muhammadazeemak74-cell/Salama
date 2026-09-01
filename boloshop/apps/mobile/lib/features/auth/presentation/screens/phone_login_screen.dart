@@ -71,12 +71,20 @@ class _PhoneLoginScreenState extends ConsumerState<PhoneLoginScreen> {
           .requestOtp(e164);
 
       if (!mounted) return;
+
+      // Whether this screen is the bottom of the stack decides where the OTP
+      // screen sends someone once they are signed in. Read here, where the
+      // answer is known, rather than guessed at two screens later.
+      final isEntryPoint = ModalRoute.of(context)?.isFirst ?? false;
+
+      // 202 Accepted: the gateway has issued a code. Anything else threw.
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => OtpVerifyScreen(
             phoneNumber: e164,
             resendAfterSeconds: challenge.resendAfterSeconds,
             devOtp: challenge.devOtp,
+            replaceStackWithFeed: isEntryPoint,
           ),
         ),
       );

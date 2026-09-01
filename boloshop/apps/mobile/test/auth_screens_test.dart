@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boloshop/core/network/api_client.dart';
 import 'package:boloshop/core/session/session.dart';
 import 'package:boloshop/core/session/token_store.dart';
@@ -5,6 +7,7 @@ import 'package:boloshop/core/theme/app_theme.dart';
 import 'package:boloshop/features/auth/data/auth_repository.dart';
 import 'package:boloshop/features/auth/presentation/screens/otp_verify_screen.dart';
 import 'package:boloshop/features/auth/presentation/screens/phone_login_screen.dart';
+import 'package:boloshop/features/feed/presentation/screens/feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -282,6 +285,86 @@ void main() {
       expect(find.textContaining('462258'), findsOneWidget);
     });
 
+    testWidgets('returns to the feed it was pushed over', (tester) async {
+      // The usual case: someone tapped Buy on the feed, got sent to sign in,
+      // and should come back to the product they were looking at.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const Scaffold(body: Center(child: Text('the feed'))),
+            routes: {
+              PhoneLoginScreen.routeName: (_) => const PhoneLoginScreen(),
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const OtpVerifyScreen(phoneNumber: '+923001234567'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettleFrames();
+
+      await tester.enterText(find.byType(TextField), '123456');
+      await tester.pump();
+      await tester.pumpAndSettleFrames();
+
+      expect(find.text('the feed'), findsOneWidget);
+      expect(find.byType(OtpVerifyScreen), findsNothing);
+    });
+
+    testWidgets('puts the feed on the stack when login was the entry point', (
+      tester,
+    ) async {
+      // A signed-out cold start has nothing underneath, so popping would leave
+      // someone who just signed in looking at the login screen.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          ],
+          // No `home`: MaterialApp maps '/' to it, and FeedScreen.routeName IS
+          // '/', so a `home` here would make pushing the feed re-push this
+          // screen. onGenerateInitialRoutes gives a one-route stack, which is
+          // the "nothing underneath" case being tested.
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            initialRoute: '/verify',
+            onGenerateInitialRoutes: (_) => [
+              MaterialPageRoute<void>(
+                builder: (_) => const OtpVerifyScreen(
+                  phoneNumber: '+923001234567',
+                  replaceStackWithFeed: true,
+                ),
+              ),
+            ],
+            onGenerateRoute: (settings) => settings.name == FeedScreen.routeName
+                ? MaterialPageRoute<void>(builder: (_) => const FeedScreen())
+                : null,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), '123456');
+      await tester.pump();
+      await tester.pumpAndSettleFrames(30);
+
+      expect(find.byType(FeedScreen), findsOneWidget);
+      expect(find.byType(OtpVerifyScreen), findsNothing);
+    });
+
     testWidgets('cancels its countdown when dismissed', (tester) async {
       await tester.pumpWidget(otpScreen());
       await tester.pump();
@@ -292,4 +375,15 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
   });
+}
+
+/// The feed and the auth screens both run repeating animations, so
+/// [WidgetTester.pumpAndSettle] never settles. This pumps a bounded number of
+/// frames instead, which is enough for a route transition to finish.
+extension on WidgetTester {
+  Future<void> pumpAndSettleFrames([int frames = 12]) async {
+    for (var i = 0; i < frames; i++) {
+      await pump(const Duration(milliseconds: 60));
+    }
+  }
 }
