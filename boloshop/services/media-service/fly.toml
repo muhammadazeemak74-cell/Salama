@@ -1,0 +1,50 @@
+# BoloShop media service — fly.io template.
+#
+# The build context must be the monorepo root (the @boloshop/db workspace
+# lives outside this directory), so deploy from boloshop/:
+#
+#   fly deploy --config services/media-service/fly.toml
+#
+# Create the render volume once, in the same region:
+#
+#   fly volumes create boloshop_media --size 20 --region bom
+#   fly secrets set DATABASE_URL=... REDIS_URL=...
+#
+# Rename `app` before the first deploy; one Fly app per service.
+
+app = "boloshop-media-service"
+primary_region = "bom"
+
+[build]
+  dockerfile = "services/media-service/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4001"
+  MEDIA_STORAGE_PATH = "/app/uploads"
+
+# Rendered MP4s and scratch uploads must survive a machine replacement.
+[[mounts]]
+  source = "boloshop_media"
+  destination = "/app/uploads"
+
+[http_service]
+  internal_port = 4001
+  force_https = true
+  # Never suspend mid-render: a 15s 1080x1920 encode is CPU-bound and long.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/v1/media/health"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"
+
+# x264 wants real cores. Below this, renders queue behind each other.
+[[vm]]
+  size = "performance-2x"
+  memory = "4gb"

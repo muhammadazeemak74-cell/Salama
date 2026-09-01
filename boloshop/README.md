@@ -114,3 +114,45 @@ one is not there.
 `@boloshop/db` has no unit tests: it is the migration runner and the connection
 pool, both of which need a real Postgres. `make db-migrate` against a live
 database is what exercises it.
+
+## Deployment
+
+`docker-compose.yml` brings up the whole stack — Postgres 16, Redis 7 with AOF,
+the two Node services and the Go order service — on the default bridge network,
+where they reach each other by service name:
+
+```
+cp .env.docker.example .env   # set JWT_SECRET; nothing else is required
+docker compose up --build
+```
+
+A one-shot `migrate` service applies `packages/db/migrations` before the three
+application services start, and each of them waits on Postgres and Redis
+reporting healthy rather than merely running.
+
+### Build contexts
+
+The two Node images depend on the `@boloshop/db` workspace, which lives outside
+their directories, **so their build context is this directory, not the service
+directory**:
+
+```
+docker build -f services/api-gateway/Dockerfile  -t boloshop/api-gateway  .
+docker build -f services/media-service/Dockerfile -t boloshop/media-service .
+docker build -t boloshop/order-service services/order-service   # self-contained
+```
+
+The `media-service` image carries `ffmpeg` and DejaVu, and links the font to
+the path `src/config.ts` probes for, so overlays render without any `FONT_PATH`
+being passed in.
+
+### Platform templates
+
+`railway.json` and `fly.toml` in each service directory are starting points,
+not deployed configuration — rename the apps and supply the secrets through the
+platform's own store (`DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET` for the
+gateway). On Railway, set each service's **Root Directory** to `boloshop`,
+since `dockerfilePath` is resolved from there. On Fly, deploy the Node services
+from this directory (`fly deploy --config services/api-gateway/fly.toml`) so
+the context includes `packages/db`, and give `media-service` a volume for
+`/app/uploads`.

@@ -1,0 +1,39 @@
+# BoloShop order service — fly.io template.
+#
+# Self-contained context; deploy from this directory:
+#
+#   fly deploy --config fly.toml
+#   fly secrets set DATABASE_URL=...
+#
+# Rename `app` before the first deploy; one Fly app per service.
+
+app = "boloshop-order-service"
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "4002"
+  TEAM_BUY_WINDOW_HOURS = "24"
+  TEAM_BUY_BASE_URL = "https://boloshop.pk/team"
+
+[http_service]
+  internal_port = 4002
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Checkout must not wait on a cold start.
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,39 @@
+# Build context for the Node service images is this directory (the monorepo
+# root), so keep it small and keep secrets out of it.
+
+.git
+.gitignore
+.github
+
+# Reinstalled inside the image from the lockfile; a host node_modules would
+# also carry linux-incompatible native builds.
+node_modules
+**/node_modules
+
+# Rebuilt inside the image. A stale host dist/ must never win — and a stale
+# tsbuildinfo is worse: tsc would believe the build is current and emit
+# nothing into an empty dist/.
+**/dist
+**/build
+**/bin
+**/*.tsbuildinfo
+
+# Never ship real credentials into a layer.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# The Flutter app is not part of any service image and is large.
+apps
+
+# Go service builds from its own context (services/order-service).
+services/order-service
+
+# Editor, test and doc noise.
+**/*.log
+**/coverage
+**/.dart_tool
+**/.DS_Store
+Dockerfile
+docker-compose*.yml

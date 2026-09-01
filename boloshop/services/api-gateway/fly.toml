@@ -1,0 +1,43 @@
+# BoloShop API gateway — fly.io template.
+#
+# The build context must be the monorepo root (the @boloshop/db workspace
+# lives outside this directory), so deploy from boloshop/:
+#
+#   fly deploy --config services/api-gateway/fly.toml
+#
+# Secrets are never written here — set them once per app:
+#
+#   fly secrets set JWT_SECRET="$(openssl rand -base64 48)" \
+#                   DATABASE_URL=... REDIS_URL=...
+#
+# Rename `app` before the first deploy; one Fly app per service.
+
+app = "boloshop-api-gateway"
+primary_region = "bom"   # Mumbai: closest region to Pakistan
+
+[build]
+  dockerfile = "services/api-gateway/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Sign-in must not wait on a cold start.
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

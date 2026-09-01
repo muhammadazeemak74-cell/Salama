@@ -1,0 +1,181 @@
+# BoloShop — local and staging orchestration.
+#
+#   cp .env.docker.example .env && docker compose up --build
+#
+# Services address each other by container name on the default network
+# (postgres, redis, api-gateway, media-service, order-service), so nothing
+# here depends on host ports; the published ports are for the Flutter app and
+# for poking at the stack from the host.
+#
+# Secrets are never baked into an image or committed here: JWT_SECRET has no
+# default on purpose and compose refuses to start without it.
+
+name: boloshop
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [boloshop]
+
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-boloshop}
+      POSTGRES_USER: ${POSTGRES_USER:-boloshop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-boloshop}
+      # Off by default in the official image; without it a corrupt shutdown
+      # can lose committed orders.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # -U/-d as well as the host: bare `pg_isready` passes while the cluster
+      # is still running initdb's temporary single-user server.
+      test:
+        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-boloshop} -d ${POSTGRES_DB:-boloshop}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    <<: *service-defaults
+    image: redis:7-alpine
+    # AOF on: OTP challenges and seller credit balances live here, and a
+    # restart that resurrects a spent credit is a paid render given away.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--dir", "/data"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies packages/db/migrations, then exits. Everything that
+  # touches the schema waits on it completing successfully.
+  migrate:
+    image: boloshop/api-gateway:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    command: ["node", "/app/packages/db/dist/migrate.js", "up"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-boloshop}:${POSTGRES_PASSWORD:-boloshop}@postgres:5432/${POSTGRES_DB:-boloshop}
+      PGSSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [boloshop]
+
+  api-gateway:
+    <<: *service-defaults
+    image: boloshop/api-gateway:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER:-boloshop}:${POSTGRES_PASSWORD:-boloshop}@postgres:5432/${POSTGRES_DB:-boloshop}
+      PGSSLMODE: disable
+      REDIS_URL: redis://redis:6379
+      # No default: the gateway signs sessions with this. Set it in .env or
+      # in the deployment's secret store.
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env, e.g. openssl rand -base64 48}"
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    ports:
+      - "${API_GATEWAY_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  media-service:
+    <<: *service-defaults
+    image: boloshop/media-service:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: services/media-service/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4001
+      DATABASE_URL: postgres://${POSTGRES_USER:-boloshop}:${POSTGRES_PASSWORD:-boloshop}@postgres:5432/${POSTGRES_DB:-boloshop}
+      PGSSLMODE: disable
+      REDIS_URL: redis://redis:6379
+      MEDIA_STORAGE_PATH: /app/uploads
+      # FFMPEG_PATH/FFPROBE_PATH/FONT_PATH are baked into the image.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    ports:
+      - "${MEDIA_SERVICE_PORT:-4001}:4001"
+    volumes:
+      # Rendered MP4s and scratch uploads outlive the container.
+      - media-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/api/v1/media/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      # A render can saturate the CPU; give the probe room before it declares
+      # a busy encoder dead.
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  order-service:
+    <<: *service-defaults
+    image: boloshop/order-service:${IMAGE_TAG:-local}
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 4002
+      DATABASE_URL: postgres://${POSTGRES_USER:-boloshop}:${POSTGRES_PASSWORD:-boloshop}@postgres:5432/${POSTGRES_DB:-boloshop}?sslmode=disable
+      TEAM_BUY_WINDOW_HOURS: ${TEAM_BUY_WINDOW_HOURS:-24}
+      TEAM_BUY_BASE_URL: ${TEAM_BUY_BASE_URL:-https://boloshop.pk/team}
+    ports:
+      - "${ORDER_SERVICE_PORT:-4002}:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  boloshop:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  media-uploads:
