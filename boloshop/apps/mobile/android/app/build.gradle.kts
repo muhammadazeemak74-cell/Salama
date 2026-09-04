@@ -20,7 +20,17 @@ val hasReleaseKey = keystorePropertiesFile.exists()
 
 android {
     namespace = "com.boloshop.boloshop"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned rather than flutter.compileSdkVersion, which is 36 on this SDK.
+    // flutter_secure_storage 11 publishes AAR metadata demanding 37, and
+    // checkReleaseAarMetadata fails the build outright below that — for debug
+    // builds too, so this is not a release-only concern. Compiling against a
+    // newer API is backward compatible and does not change runtime behaviour;
+    // targetSdk stays on Flutter's default, which is what opts the app into
+    // new platform behaviour.
+    //
+    // Drop this back to flutter.compileSdkVersion once Flutter's own default
+    // reaches 37.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -43,6 +43,15 @@ void main() {
       expect(gradle, contains('getDefaultProguardFile'));
     });
 
+    test('compiles against the SDK flutter_secure_storage demands', () {
+      // Reverting this to flutter.compileSdkVersion breaks every Android
+      // build, debug included: the plugin's AAR metadata requires 37 and
+      // checkAarMetadata refuses anything lower. Nothing else in the suite
+      // would catch it, because no test builds for Android.
+      expect(gradle, contains('compileSdk = 37'));
+      expect(gradle, isNot(contains('compileSdk = flutter.compileSdkVersion')));
+    });
+
     test('uploads native debug symbols', () {
       // Otherwise a crash in the Dart or engine .so is hexadecimal in Play
       // Console.
