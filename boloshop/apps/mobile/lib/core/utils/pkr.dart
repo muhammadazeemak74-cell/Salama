@@ -47,8 +47,8 @@ String formatPkrDigits(String amount) {
 /// Returns null when the discount is not a positive saving, so the caller can
 /// omit the badge instead of rendering "Save 0%".
 int? savingPercent({required String from, required String to}) {
-  final fromPaisa = _toPaisa(from);
-  final toPaisa = _toPaisa(to);
+  final fromPaisa = pkrToPaisa(from);
+  final toPaisa = pkrToPaisa(to);
   if (fromPaisa == null || toPaisa == null || fromPaisa <= 0) return null;
 
   final saved = fromPaisa - toPaisa;
@@ -57,9 +57,12 @@ int? savingPercent({required String from, required String to}) {
   return ((saved * 100) / fromPaisa).round();
 }
 
-/// Parses `"3500.50"` into 350050 paisa. Integer paisa keeps the arithmetic
-/// exact where a double would not.
-int? _toPaisa(String amount) {
+/// Parses `"3500.50"` into 350050 paisa, or null if it is not an amount.
+///
+/// Integer paisa keeps the arithmetic exact where a double would not, so
+/// anything that has to add prices up — a running order total, a cart —
+/// does it here rather than on parsed doubles.
+int? pkrToPaisa(String amount) {
   final trimmed = amount.trim();
   final dot = trimmed.indexOf('.');
   final whole = dot == -1 ? trimmed : trimmed.substring(0, dot);
@@ -74,4 +77,15 @@ int? _toPaisa(String amount) {
   if (fractionValue == null) return null;
 
   return wholeValue * 100 + fractionValue;
+}
+
+/// The inverse of [pkrToPaisa]: 350050 becomes `"3500.50"`.
+///
+/// Produces the same decimal-string shape the backend sends, so a locally
+/// summed total formats through [formatPkr] exactly like a server-sent one.
+String paisaToAmount(int paisa) {
+  final sign = paisa < 0 ? '-' : '';
+  final absolute = paisa.abs();
+  final fraction = (absolute % 100).toString().padLeft(2, '0');
+  return '$sign${absolute ~/ 100}.$fraction';
 }

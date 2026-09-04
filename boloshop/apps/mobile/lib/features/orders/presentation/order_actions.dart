@@ -7,6 +7,7 @@ import '../../feed/domain/feed_item.dart';
 import '../data/order_repository.dart';
 import '../domain/order_models.dart';
 import '../domain/whatsapp_message.dart';
+import 'order_stats.dart';
 
 /// What a buy attempt produced. Sealed so the screen has to handle every case
 /// — an unhandled failure on a checkout button is the worst kind of silence.
@@ -85,6 +86,8 @@ class OrderActions extends Notifier<bool> {
             totalAmountPkr: item.soloPricePkr,
           );
 
+      ref.read(orderStatsProvider.notifier).record(order);
+
       final link = parseWhatsAppUrl(order.whatsAppConfirmationUrl);
       final opened = link == null
           ? false
@@ -127,6 +130,8 @@ class OrderActions extends Notifier<bool> {
         sellerId: item.sellerId,
         totalAmountPkr: item.soloPricePkr,
       );
+
+      ref.read(orderStatsProvider.notifier).record(order, isTeamBuy: true);
 
       final teamPurchase = await repository.createTeamPurchase(
         orderId: order.id,

@@ -10,6 +10,7 @@ import '../../../../core/utils/pkr.dart';
 import '../../../auth/presentation/screens/phone_login_screen.dart';
 import '../../../orders/presentation/order_actions.dart';
 import '../../../orders/presentation/widgets/team_buy_dialog.dart';
+import '../../../profile/presentation/widgets/profile_drawer.dart';
 import '../../../voice/domain/voice_filter.dart';
 import '../../../voice/presentation/widgets/voice_search_modal.dart';
 import '../../domain/feed_item.dart';
@@ -37,6 +38,11 @@ class FeedScreen extends ConsumerStatefulWidget {
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   final PreloadPageController _pageController = PreloadPageController();
+
+  // The profile drawer is opened from the top bar, which is a sibling of the
+  // Scaffold's body rather than a descendant of it — Scaffold.of would not
+  // find it from there.
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void dispose() {
@@ -171,6 +177,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     );
   }
 
+  void _openProfile() => _scaffoldKey.currentState?.openDrawer();
+
   void _clearFilters() {
     ref.read(feedControllerProvider.notifier).clearFilters();
     if (_pageController.hasClients) _pageController.jumpToPage(0);
@@ -186,60 +194,78 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: AppTheme.immersiveOverlay,
       child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: AppColors.darkBackground,
+        drawer: const ProfileDrawer(),
+        // Edge-drag stays on: it is a horizontal gesture and the feed only
+        // reads vertical ones, so the two cannot fight.
+        drawerScrimColor: AppColors.scrimBottom,
         // The feed runs edge to edge, under the status bar and the gesture bar.
         extendBody: true,
         extendBodyBehindAppBar: true,
-        body: items.isEmpty
-            ? (state.isFilteredEmpty
-                  ? _NoMatches(
-                      transcript: state.transcript,
-                      onClear: _clearFilters,
-                      onRetryVoice: _openVoiceSearch,
-                    )
-                  : const _EmptyFeed())
-            : Stack(
-                children: [
-                  // preloadPagesCount: 1 builds one page either side, so the
-                  // next video has begun buffering by the time a thumb lands on
-                  // it. Two would buffer more aggressively than a Pakistani
-                  // mobile data bundle deserves.
-                  PreloadPageView.builder(
-                    controller: _pageController,
-                    scrollDirection: Axis.vertical,
-                    preloadPagesCount: 1,
-                    itemCount: items.length,
-                    onPageChanged: controller.onPageChanged,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return _FeedPage(
-                        item: item,
-                        pageIndex: index,
-                        isActive: index == state.currentIndex,
-                        onLike: () => controller.toggleLike(item.id),
-                        onFollow: () => controller.toggleFollow(item.id),
-                        onComment: () => _showSoon('Comments are coming soon.'),
-                        onShare: () => _showSoon('Shared to WhatsApp.'),
-                        onSoloBuy: () => _soloBuy(item),
-                        onTeamBuy: () => _teamBuy(item),
-                      );
-                    },
-                  ),
-                  _TopBar(item: state.current, onBolo: _openVoiceSearch),
-                  if (state.filters.isNotEmpty)
-                    _ActiveFilterBar(
-                      filters: state.filters,
-                      transcript: state.transcript,
-                      matchCount: items.length,
-                      onClear: _clearFilters,
-                    )
-                  else if (state.errorMessage != null)
-                    _OfflineNotice(message: state.errorMessage!),
-                  // A cash-on-delivery order is being created; block the feed
-                  // so a second tap cannot land on a different product.
-                  if (ref.watch(orderActionsProvider)) const _BuyBlocker(),
-                ],
+        // The top bar sits outside the empty/loaded branch on purpose: it
+        // carries the way into the profile drawer, and someone whose feed
+        // failed to load is exactly the person who may need to sign out.
+        body: Stack(
+          children: [
+            if (items.isEmpty)
+              Positioned.fill(
+                child: state.isFilteredEmpty
+                    ? _NoMatches(
+                        transcript: state.transcript,
+                        onClear: _clearFilters,
+                        onRetryVoice: _openVoiceSearch,
+                      )
+                    : const _EmptyFeed(),
+              )
+            else
+              // preloadPagesCount: 1 builds one page either side, so the next
+              // video has begun buffering by the time a thumb lands on it. Two
+              // would buffer more aggressively than a Pakistani mobile data
+              // bundle deserves.
+              PreloadPageView.builder(
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                preloadPagesCount: 1,
+                itemCount: items.length,
+                onPageChanged: controller.onPageChanged,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return _FeedPage(
+                    item: item,
+                    pageIndex: index,
+                    isActive: index == state.currentIndex,
+                    onLike: () => controller.toggleLike(item.id),
+                    onFollow: () => controller.toggleFollow(item.id),
+                    onComment: () => _showSoon('Comments are coming soon.'),
+                    onShare: () => _showSoon('Shared to WhatsApp.'),
+                    onSoloBuy: () => _soloBuy(item),
+                    onTeamBuy: () => _teamBuy(item),
+                  );
+                },
               ),
+            _TopBar(
+              item: state.current,
+              onBolo: _openVoiceSearch,
+              onProfile: _openProfile,
+            ),
+            // Both notices stay off the empty states, which say the same
+            // things at full size and would otherwise say them twice.
+            if (items.isNotEmpty)
+              if (state.filters.isNotEmpty)
+                _ActiveFilterBar(
+                  filters: state.filters,
+                  transcript: state.transcript,
+                  matchCount: items.length,
+                  onClear: _clearFilters,
+                )
+              else if (state.errorMessage != null)
+                _OfflineNotice(message: state.errorMessage!),
+            // A cash-on-delivery order is being created; block the feed so a
+            // second tap cannot land on a different product.
+            if (ref.watch(orderActionsProvider)) const _BuyBlocker(),
+          ],
+        ),
       ),
     );
   }
@@ -335,10 +361,15 @@ class _FeedPage extends StatelessWidget {
 
 /// The floating top bar: live badge on the left, Bolo on the right.
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.item, required this.onBolo});
+  const _TopBar({
+    required this.item,
+    required this.onBolo,
+    required this.onProfile,
+  });
 
   final FeedItem? item;
   final VoidCallback onBolo;
+  final VoidCallback onProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -349,10 +380,44 @@ class _TopBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
         child: Row(
           children: [
+            _ProfileButton(onPressed: onProfile),
+            const SizedBox(width: 10),
             if (isLive) LiveBadge(viewerCount: item!.liveViewerCount),
             const Spacer(),
             BoloVoiceButton(onPressed: onBolo),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the profile drawer. A dark well behind it rather than a bare icon,
+/// so it stays visible over a bright product video.
+class _ProfileButton extends StatelessWidget {
+  const _ProfileButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Profile and sign out',
+      child: Material(
+        color: AppColors.iconWell,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(
+              Icons.person_outline_rounded,
+              size: 20,
+              color: AppColors.textPrimary,
+            ),
+          ),
         ),
       ),
     );

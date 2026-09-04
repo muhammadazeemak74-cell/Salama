@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/session/session.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/phone_login_screen.dart';
@@ -40,9 +41,12 @@ class BoloShopApp extends StatelessWidget {
       theme: AppTheme.dark,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
+      // The root route is the gate, not the feed. FeedScreen.routeName is
+      // still what everything navigates to — it means "the app's home", and
+      // the gate decides whether home is the feed or the login screen.
       initialRoute: FeedScreen.routeName,
       routes: {
-        FeedScreen.routeName: (_) => const FeedScreen(),
+        FeedScreen.routeName: (_) => const AuthGate(),
         PhoneLoginScreen.routeName: (_) => const PhoneLoginScreen(),
       },
       // Named routes will grow to product detail, checkout and team-buy; an
@@ -65,6 +69,58 @@ class BoloShopApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
+    );
+  }
+}
+
+/// The first screen, chosen by whether a token survived the last run.
+///
+/// [SessionController] reads secure storage on construction, so the three
+/// states here are the three the session can be in on a cold start:
+///
+///   restoring -> a held frame, because a token usually IS there and bouncing
+///                a signed-in user to the login screen for one frame is worse
+///                than a moment of nothing
+///   signedIn  -> the feed
+///   signedOut -> sign in
+///
+/// It watches rather than reads, so signing out anywhere in the app lands back
+/// here without that code having to know what the root route should become.
+class AuthGate extends ConsumerWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(sessionProvider.select((session) => session.status));
+
+    return switch (status) {
+      SessionStatus.restoring => const _RestoringSplash(),
+      SessionStatus.signedIn => const FeedScreen(),
+      SessionStatus.signedOut => const PhoneLoginScreen(),
+    };
+  }
+}
+
+/// Held while the Keychain read is in flight. Deliberately close to the login
+/// screen's own background, so the handover is a fade of content rather than a
+/// flash of a different colour.
+class _RestoringSplash extends StatelessWidget {
+  const _RestoringSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.darkBackground,
+      body: Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: AppColors.primaryGreen,
+          ),
+        ),
+      ),
     );
   }
 }
