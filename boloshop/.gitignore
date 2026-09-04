@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.env
+.env*.local
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/build/
+
+# Go
+services/order-service/bin/

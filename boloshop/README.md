@@ -1,0 +1,158 @@
+# BoloShop
+
+Live-commerce for Pakistan: sellers stream product videos, buyers watch a
+vertical feed and buy alone or with a friend for a group discount. Cash on
+delivery, 1% platform commission.
+
+See `CLAUDE.md` for the architecture and the constraints behind it.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `apps/mobile` | Flutter app (iOS / Android) — the video feed and checkout |
+| `services/api-gateway` | Express + TypeScript — auth, catalog, media |
+| `services/media-service` | Node + FFmpeg — renders 15s vertical promo videos |
+| `services/order-service` | Go — orders, COD tracking, team purchases |
+| `packages/db` | PostgreSQL schema, migrations, shared Postgres and Redis helpers |
+
+The three services share one Postgres schema, defined once in `packages/db`,
+and one Redis for the state every pod has to agree on.
+
+## Getting started
+
+```bash
+make install                       # npm + go mod + flutter pub get
+redis-server --port 6379 --daemonize yes
+export DATABASE_URL=postgres://boloshop:boloshop@localhost:5432/boloshop
+export JWT_SECRET=$(openssl rand -base64 48)
+make db-migrate                    # apply the schema
+make dev                           # all three services, Ctrl-C stops them all
+```
+
+`REDIS_URL` defaults to `redis://localhost:6379`, so a local Redis needs no
+configuration. Point `REDIS_CLUSTER_NODES` at seed nodes for cluster mode.
+
+`make` on its own lists every target. `make health` curls all three services,
+and `make stop` frees the ports if `make dev` is running in another terminal.
+
+| Target | Does |
+| --- | --- |
+| `make build` | Compiles TypeScript, Go, and analyzes the Flutter app |
+| `make test` | Runs every test suite |
+| `make db-migrate` | Applies pending Postgres migrations |
+| `make dev` | Gateway :4000, media :4001, order :4002 |
+| `make stop` | Free those ports when `dev` was started elsewhere |
+| `make check` | typecheck + lint + test — what CI should run |
+
+Per-language variants (`build-go`, `test-mobile`, `dev-gateway`, …) let you work
+on one part without installing the other toolchains. Every target that needs a
+tool or an environment variable says so by name when it is missing.
+
+Override a toolchain path if it is not on `PATH`:
+
+```bash
+make build FLUTTER=/opt/flutter/bin/flutter
+```
+
+## What lives where
+
+**PostgreSQL** holds the relational record: users, sellers, the catalog, orders
+and team purchases.
+
+**Redis** holds the state that has to be identical on every pod, and would be
+wrong the moment a second one started:
+
+| Key | Written by | Why it cannot be in memory |
+| --- | --- | --- |
+| `otp:<phone>` | api-gateway | A code issued by one pod is verified by another |
+| `seller:credits:<id>` | media-service | One credit must not buy two concurrent renders |
+
+Both are read-modify-write, so both run as Lua scripts — Redis executes a
+script to completion before anything else, which is what makes the attempt
+counter and the balance check safe across pods. OTP challenges are written with
+`SETEX`, so Redis itself enforces the five-minute lifetime and there is no
+sweeper in the service to get wrong.
+
+Redis is the system of record for credit balances, so it needs persistence
+(AOF, or RDB at a cadence you can afford to lose renders across). It is not a
+ledger — there is no history of who spent what. A `seller_video_credits` table
+deducted in the same transaction as the booking is the eventual home; Redis
+makes the counter correct across pods, not auditable.
+
+## Requirements
+
+Node 20+, Go 1.24+, PostgreSQL 14+, Redis 6+, and — for the app — the Flutter
+SDK.
+`media-service` additionally needs the `ffmpeg` binary on the host; without it
+the service still starts and reports the gap on `/health`, and render requests
+return a 503 that names what is missing.
+
+## Testing
+
+`make test` runs all four suites: Jest for the two TypeScript services, `go
+test` for the order service, and `flutter test` for the app.
+
+| Suite | Covers |
+| --- | --- |
+| `api-gateway` (Jest) | OTP issue/verify/expiry/lockout, Zod schemas, JWT middleware and role gates |
+| `media-service` (Jest) | Zod schemas, credit deduction and refund-on-failure, scratch-disk cleanup |
+| `order-service` (Go) | Shipment state machine, E.164 and amount validation, PKR formatting, WhatsApp links, team-buy window |
+| `apps/mobile` (Flutter) | PKR formatting, feed state and filters, buy flows, rendered widgets |
+
+Jest compiles the sources to CommonJS for tests (`tsconfig.test.json` in each
+service) rather than using Jest's experimental ESM support. ts-jest type-checks
+every test file, so a test that misuses an API fails to compile.
+
+**Both Jest suites need a running Redis** on `redis://localhost:6379`; they use
+database 15 and their own key prefixes, so they stay clear of local data and of
+each other. What is under test is Lua running inside Redis — the attempt
+counter, the resend cooldown, the atomic credit check — and no in-memory double
+runs that, so the suites talk to a real server and fail with instructions if
+one is not there.
+
+`@boloshop/db` has no unit tests: it is the migration runner and the connection
+pool, both of which need a real Postgres. `make db-migrate` against a live
+database is what exercises it.
+
+## Deployment
+
+`docker-compose.yml` brings up the whole stack — Postgres 16, Redis 7 with AOF,
+the two Node services and the Go order service — on the default bridge network,
+where they reach each other by service name:
+
+```
+cp .env.docker.example .env   # set JWT_SECRET; nothing else is required
+docker compose up --build
+```
+
+A one-shot `migrate` service applies `packages/db/migrations` before the three
+application services start, and each of them waits on Postgres and Redis
+reporting healthy rather than merely running.
+
+### Build contexts
+
+The two Node images depend on the `@boloshop/db` workspace, which lives outside
+their directories, **so their build context is this directory, not the service
+directory**:
+
+```
+docker build -f services/api-gateway/Dockerfile  -t boloshop/api-gateway  .
+docker build -f services/media-service/Dockerfile -t boloshop/media-service .
+docker build -t boloshop/order-service services/order-service   # self-contained
+```
+
+The `media-service` image carries `ffmpeg` and DejaVu, and links the font to
+the path `src/config.ts` probes for, so overlays render without any `FONT_PATH`
+being passed in.
+
+### Platform templates
+
+`railway.json` and `fly.toml` in each service directory are starting points,
+not deployed configuration — rename the apps and supply the secrets through the
+platform's own store (`DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET` for the
+gateway). On Railway, set each service's **Root Directory** to `boloshop`,
+since `dockerfilePath` is resolved from there. On Fly, deploy the Node services
+from this directory (`fly deploy --config services/api-gateway/fly.toml`) so
+the context includes `packages/db`, and give `media-service` a volume for
+`/app/uploads`.

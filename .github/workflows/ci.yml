@@ -1,0 +1,240 @@
+# BoloShop CI.
+#
+# This file lives at the repository root, not in boloshop/: GitHub only reads
+# workflows from <repo root>/.github/workflows, and one under the subfolder
+# would never run. The work happens in boloshop/ via `defaults.run`.
+#
+# Note that `defaults.run.working-directory` applies ONLY to `run:` steps.
+# Paths passed to actions as inputs — go-version-file, cache-dependency-path —
+# are always relative to the repository root, so those are written out in full.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # Run by hand to get an APK pointed at a backend of your choosing — a
+  # deployed hostname, or a machine on your LAN. Leave the URLs blank and the
+  # APK is a development build: it reaches nothing, shows the sample feed and
+  # says so, which is enough to walk through every screen.
+  workflow_dispatch:
+    inputs:
+      app_env:
+        description: Environment for the test APK
+        type: choice
+        options: [development, staging, production]
+        default: development
+      gateway_base_url:
+        description: "Override the gateway URL, e.g. https://api.example.com (https required outside development)"
+        type: string
+        default: ""
+      order_service_base_url:
+        description: "Override the order service URL"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# A second push to the same branch makes the first run's answer worthless.
+# Cancel it rather than queue behind it; a push to main is exempt, since that
+# result is the one people go back and read.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: boloshop
+
+jobs:
+  order-service:
+    name: Go order service
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: boloshop/services/order-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # From go.mod rather than a literal here, so the toolchain CI builds
+          # with and the one the module declares cannot drift apart.
+          go-version-file: boloshop/services/order-service/go.mod
+          # Caches the module download cache and the build cache.
+          cache-dependency-path: boloshop/services/order-service/go.sum
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -v ./...
+
+  typescript:
+    name: TypeScript services
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Both Jest suites exercise Lua running inside Redis — the OTP attempt
+    # counter, the resend cooldown, the atomic credit deduction — and no
+    # in-memory double runs those, so the suites need a real server. They use
+    # database 15 and their own key prefixes.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: boloshop/package-lock.json
+
+      # Installs every workspace — packages/db, services/api-gateway,
+      # services/media-service — from the lockfile in one go.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  mobile:
+    name: Flutter app
+    runs-on: ubuntu-latest
+    # The release bundle adds a Gradle run on top of analyze and test.
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: boloshop/apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Android Gradle Plugin wants 17, and the runner image's default has
+      # moved before. Pinning it keeps the release build off that.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # Caches the SDK itself, which is the slow half of this job.
+          cache: true
+
+      # The SDK cache and the package cache are separate things; this one is
+      # keyed on the lockfile, so it is only rebuilt when a dependency moves.
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      # Gradle's own caches, which dominate the release build's time.
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/android/**/*.gradle*', 'boloshop/apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # The only place the release configuration is actually exercised. R8,
+      # the keep rules in android/app/proguard-rules.pro and the production
+      # EnvConfig are all release-only: analyze and test never touch them, and
+      # a rule that strips flutter_secure_storage would otherwise be found by
+      # a user signed out on every launch.
+      #
+      # The Android SDK is preinstalled on the runner image. With no
+      # android/key.properties the bundle is signed with the debug key and
+      # cannot be uploaded to Play — the point here is that it builds, not that
+      # it ships.
+      - name: Build release app bundle
+        run: flutter build appbundle --dart-define=APP_ENV=production
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: boloshop/apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
+
+      # An .aab cannot be installed on a phone — Play unpacks it into per-device
+      # APKs. This is the artifact a person can actually sideload and open.
+      # Universal rather than split-per-abi so one file runs on any device.
+      #
+      # Defaults to the development environment on the automatic runs, which
+      # makes it self-contained: it reaches no backend, falls back to the
+      # sample feed and says so in a pill under the status bar. Dispatch the
+      # workflow by hand to point one at a real backend.
+      - name: Build installable APK
+        env:
+          APP_ENV: ${{ inputs.app_env }}
+          GATEWAY_BASE_URL: ${{ inputs.gateway_base_url }}
+          ORDER_SERVICE_BASE_URL: ${{ inputs.order_service_base_url }}
+        run: |
+          set -euo pipefail
+          defines="--dart-define=APP_ENV=${APP_ENV:-development}"
+          if [ -n "${GATEWAY_BASE_URL:-}" ]; then
+            defines="$defines --dart-define=GATEWAY_BASE_URL=${GATEWAY_BASE_URL}"
+          fi
+          if [ -n "${ORDER_SERVICE_BASE_URL:-}" ]; then
+            defines="$defines --dart-define=ORDER_SERVICE_BASE_URL=${ORDER_SERVICE_BASE_URL}"
+          fi
+          echo "Building with: $defines"
+          # shellcheck disable=SC2086
+          flutter build apk --release $defines
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: boloshop/apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

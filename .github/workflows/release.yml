@@ -1,0 +1,168 @@
+# Publishes a sideloadable BoloShop APK as a GitHub Release.
+#
+# The CI workflow already builds this APK, but an Actions artifact is not a
+# way to hand someone an app: GitHub requires a signed-in session to download
+# an artifact even from a public repository, and serves anonymous visitors a
+# 404 rather than a login prompt. It also arrives as a .zip, which a phone
+# browser will not install. A release asset is a plain public file that
+# Android installs straight from the download.
+#
+# Triggered by pushing either a tag or a release branch:
+#   git tag boloshop-v0.1.0 && git push origin boloshop-v0.1.0
+#   git push origin HEAD:release/boloshop-v0.1.0
+#
+# The branch form exists because a token is not always allowed to write
+# refs/tags — the automation that cut the first preview could push a branch
+# but got a 403 on every tag — and a release nobody can trigger is not a
+# release process. Either ref names the version; the branch form drops the
+# release/ prefix, and gh creates the missing tag at the built commit.
+
+name: Release APK
+
+on:
+  push:
+    tags:
+      - "boloshop-v*"
+    branches:
+      - "release/boloshop-v*"
+
+# Creating the release and uploading the asset both need write access to repo
+# contents. This is the only workflow here that has it.
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: boloshop/apps/mobile
+
+jobs:
+  release:
+    name: Build and publish APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/android/**/*.gradle*', 'boloshop/apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install packages
+        run: flutter pub get
+
+      # Cheap next to the Gradle build, and stops a tag from publishing an APK
+      # that the test suite would have rejected.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # Development rather than production: there is no deployed backend to
+      # point this at. A development build is self-contained — it reaches no
+      # network, falls back to the sample feed and says so in a pill under the
+      # status bar, which is what makes it walkable on a phone with nothing
+      # else running. CI's workflow_dispatch builds one aimed at a real
+      # backend when there is one.
+      - name: Build installable APK
+        run: flutter build apk --release --dart-define=APP_ENV=development
+
+      # Rename off Flutter's generic app-release.apk so the downloaded file
+      # says what it is once it is sitting in a phone's Downloads folder.
+      - name: Name the asset
+        id: asset
+        run: |
+          set -euo pipefail
+          src=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$src"
+          version="${GITHUB_REF_NAME#release/}"
+          name="boloshop-${version#boloshop-}-development.apk"
+          cp "$src" "$name"
+          echo "path=boloshop/apps/mobile/$name" >> "$GITHUB_OUTPUT"
+          echo "Built $name ($(du -h "$name" | cut -f1))"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET: ${{ steps.asset.outputs.path }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF_TYPE" in
+            tag)    tag="$GITHUB_REF_NAME" ;;
+            branch) tag="${GITHUB_REF_NAME#release/}" ;;
+            *)      echo "unexpected ref type $GITHUB_REF_TYPE" >&2; exit 1 ;;
+          esac
+          notes="$(mktemp)"
+          cat > "$notes" <<'NOTES'
+          A preview build of the BoloShop Android app, for walking through the
+          UI on a real phone. Download the `.apk` below and open it; Android
+          will ask you to allow installs from your browser the first time.
+
+          ### What this build does
+
+          It is a **development** build with no backend attached, so it opens
+          straight on the feed as a guest — no phone number, no SMS code. The
+          drawer marks that session `DEMO`. Everything runs against a bundled
+          sample feed, and a pill under the status bar says so. You can browse
+          the video feed, open the solo and team buy sheets, and use the voice
+          search sheet.
+
+          Signing out from the drawer shows the real phone-login screen, which
+          is worth a look but cannot complete without a gateway to send the
+          code. **Browse as guest (demo)** on that screen puts you back in.
+
+          ### What it is not
+
+          - **Signed with the Android debug key**, because no release keystore
+            exists yet. It sideloads, but it cannot be uploaded to Play. Create
+            `android/key.properties` from the committed example to change that.
+          - **Not connected to anything.** Cash-on-delivery orders, team buys,
+            OTP login and promo rendering all need the API gateway, the order
+            service and the media service running. `docker compose up` in
+            `boloshop/` starts all three; an Android emulator reaches them at
+            `10.0.2.2`, which the app's network security config permits.
+          - **Not a build with authentication disabled.** The guest session is
+            development-only: `EnvConfig.allowsDemoSignIn` ands the flag with
+            the flavour, so staging and production builds refuse it and the
+            guest button does not exist there.
+          - The internal versionName is Flutter's default `1.0.0`. App
+            versioning is not wired to these tags yet.
+
+          Universal APK — one file, every ABI — so it installs on any device.
+          NOTES
+          # --target is what makes the branch form work: gh creates the tag at
+          # this commit when it does not already exist, and ignores the flag
+          # when it does.
+          gh release create "$tag" "$ASSET" \
+            --title "BoloShop ${tag#boloshop-} (preview)" \
+            --notes-file "$notes" \
+            --target "$GITHUB_SHA" \
+            --prerelease

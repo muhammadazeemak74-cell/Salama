@@ -1,0 +1,20 @@
+# Upload-key credentials for `flutter build appbundle`.
+#
+# Copy to android/key.properties on the machine that signs releases and fill
+# in the real values. That file is gitignored and must stay that way: it names
+# the keystore password, and a leaked upload key means someone else can publish
+# as BoloShop.
+#
+# Generate a keystore once, and keep the .jks somewhere backed up and outside
+# this repository — losing it means never being able to update the listing:
+#
+#   keytool -genkey -v -keystore ~/boloshop-upload.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias boloshop
+#
+# Without android/key.properties the release build falls back to the debug key,
+# which installs fine locally but Play will not accept.
+
+storeFile=/absolute/path/to/boloshop-upload.jks
+storePassword=
+keyAlias=boloshop
+keyPassword=

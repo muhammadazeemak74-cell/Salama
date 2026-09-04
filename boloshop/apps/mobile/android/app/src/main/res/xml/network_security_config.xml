@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is refused everywhere except the loopback addresses a
+  development build talks to.
+
+  Android blocks cleartext by default from targetSdk 28, which is correct: the
+  session JWT rides on every request. But a development build points at
+  localhost:4000 and, inside an emulator, at 10.0.2.2 — the alias for the
+  developer's own machine. Without this file those requests fail with a bare
+  connection error that reads exactly like the backend being down.
+
+  Scoping it to these three hosts rather than setting usesCleartextTraffic on
+  the whole application keeps the shipped app strict: 127.0.0.1 and localhost
+  never leave the device, and 10.0.2.2 resolves to nothing outside an
+  emulator. Production traffic goes to https://api.boloshop.pk, which
+  EnvConfig refuses to let be anything but https.
+
+  Note the list cannot be widened to a LAN range: this format takes hostnames
+  and IP literals, not CIDR blocks. A physical phone talking to a machine on
+  the same WiFi over http is not covered — use an emulator, or put the backend
+  behind https.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

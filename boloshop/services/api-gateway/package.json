@@ -1,0 +1,38 @@
+{
+  "name": "@boloshop/api-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript Express API gateway for BoloShop",
+  "type": "module",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@boloshop/db": "^0.1.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.4.0",
+    "jest": "^30.5.0",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "prebuild": "npm run build -w @boloshop/db",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "npm run build -w @boloshop/db",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js",
+    "dev": "node --watch --experimental-strip-types src/index.ts"
+  }
+}

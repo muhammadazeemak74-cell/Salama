@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // ts-jest transpiles per file to CommonJS; Jest's resolver then handles
+    // the requires. NodeNext would emit ESM that Jest cannot load without
+    // --experimental-vm-modules.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "verbatimModuleSyntax": false,
+    // NodeNext gives CJS default-import interop for free; the plain
+    // commonjs target does not, and `import jwt from "jsonwebtoken"`
+    // needs it.
+    "esModuleInterop": true,
+
+    // Sources import each other as "./x.ts". The build rewrites those to
+    // "./x.js" on emit, but under Jest the .js files do not exist — the
+    // resolver is looking at the sources — so rewriting has to be off here.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": false,
+    "noEmit": true,
+
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*.ts"],
+  // The base config excludes the tests; this one is the config that
+  // compiles them.
+  "exclude": []
+}

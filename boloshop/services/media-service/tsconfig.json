@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+
+    // Sources import each other as "./x.ts" and tsc rewrites those to
+    // "./x.js" on emit. That is what lets `node --experimental-strip-types
+    // src/index.ts` run this package directly for `npm run dev`: Node's
+    // type stripping resolves specifiers literally and will not turn a
+    // "./x.js" import into the "./x.ts" file next to it.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"],
+  // Tests live under src/ so they can import siblings by relative path,
+  // but they must never reach dist: shipping a Jest mock and a suite of
+  // specs in the production build is at best dead weight.
+  "exclude": ["src/__tests__", "dist", "node_modules"]
+}

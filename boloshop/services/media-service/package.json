@@ -1,0 +1,35 @@
+{
+  "name": "@boloshop/media-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FFmpeg canvas pipeline and HLS adaptive streaming for BoloShop live video",
+  "type": "module",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@boloshop/db": "^0.1.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "multer": "^2.3.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.4.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "prebuild": "npm run build -w @boloshop/db",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "npm run build -w @boloshop/db",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js",
+    "dev": "node --watch --experimental-strip-types src/index.ts"
+  }
+}
