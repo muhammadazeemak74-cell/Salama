@@ -7,9 +7,15 @@
 # browser will not install. A release asset is a plain public file that
 # Android installs straight from the download.
 #
-# Triggered by pushing a tag:
-#   git tag boloshop-v0.1.0-preview.1
-#   git push origin boloshop-v0.1.0-preview.1
+# Triggered by pushing either a tag or a release branch:
+#   git tag boloshop-v0.1.0 && git push origin boloshop-v0.1.0
+#   git push origin HEAD:release/boloshop-v0.1.0
+#
+# The branch form exists because a token is not always allowed to write
+# refs/tags — the automation that cut the first preview could push a branch
+# but got a 403 on every tag — and a release nobody can trigger is not a
+# release process. Either ref names the version; the branch form drops the
+# release/ prefix, and gh creates the missing tag at the built commit.
 
 name: Release APK
 
@@ -17,6 +23,8 @@ on:
   push:
     tags:
       - "boloshop-v*"
+    branches:
+      - "release/boloshop-v*"
 
 # Creating the release and uploading the asset both need write access to repo
 # contents. This is the only workflow here that has it.
@@ -94,7 +102,8 @@ jobs:
           set -euo pipefail
           src=build/app/outputs/flutter-apk/app-release.apk
           test -f "$src"
-          name="boloshop-${GITHUB_REF_NAME#boloshop-}-development.apk"
+          version="${GITHUB_REF_NAME#release/}"
+          name="boloshop-${version#boloshop-}-development.apk"
           cp "$src" "$name"
           echo "path=boloshop/apps/mobile/$name" >> "$GITHUB_OUTPUT"
           echo "Built $name ($(du -h "$name" | cut -f1))"
@@ -106,6 +115,11 @@ jobs:
         working-directory: .
         run: |
           set -euo pipefail
+          case "$GITHUB_REF_TYPE" in
+            tag)    tag="$GITHUB_REF_NAME" ;;
+            branch) tag="${GITHUB_REF_NAME#release/}" ;;
+            *)      echo "unexpected ref type $GITHUB_REF_TYPE" >&2; exit 1 ;;
+          esac
           notes="$(mktemp)"
           cat > "$notes" <<'NOTES'
           A preview build of the BoloShop Android app, for walking through the
@@ -136,8 +150,11 @@ jobs:
 
           Universal APK — one file, every ABI — so it installs on any device.
           NOTES
-          gh release create "$GITHUB_REF_NAME" "$ASSET" \
-            --title "BoloShop ${GITHUB_REF_NAME#boloshop-} (preview)" \
+          # --target is what makes the branch form work: gh creates the tag at
+          # this commit when it does not already exist, and ignores the flag
+          # when it does.
+          gh release create "$tag" "$ASSET" \
+            --title "BoloShop ${tag#boloshop-} (preview)" \
             --notes-file "$notes" \
-            --prerelease \
-            --verify-tag
+            --target "$GITHUB_SHA" \
+            --prerelease
