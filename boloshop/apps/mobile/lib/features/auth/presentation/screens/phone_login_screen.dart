@@ -174,6 +174,20 @@ class _PhoneLoginScreenState extends ConsumerState<PhoneLoginScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // Development only, and the way back in after signing out of a
+                // demo build. Absent from staging and production entirely —
+                // EnvConfig gates it on the flavour, not on a flag.
+                if (ref.watch(envConfigProvider).allowsDemoSignIn) ...[
+                  TextButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () =>
+                              ref.read(sessionProvider.notifier).signInAsDemo(),
+                    child: const Text('Browse as guest (demo)'),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+
                 Text(
                   'By continuing you agree to BoloShop’s terms. '
                   'Standard SMS charges may apply.',

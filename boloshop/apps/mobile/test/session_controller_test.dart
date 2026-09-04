@@ -58,12 +58,20 @@ class FakeAuthRepository implements AuthRepository {
   }
 }
 
+/// [demoSignIn] is off by default: most of these tests assert what happens
+/// with no stored token, and demo mode deliberately changes that answer from
+/// signed out to signed in.
 ProviderContainer makeContainer({
   FakeAuthRepository? repository,
   TokenStore? tokenStore,
+  bool demoSignIn = false,
+  String flavorName = 'development',
 }) {
   final container = ProviderContainer(
     overrides: [
+      envConfigProvider.overrideWithValue(
+        EnvConfig.from(flavorName: flavorName, demoSignIn: demoSignIn),
+      ),
       authRepositoryProvider.overrideWithValue(
         repository ?? FakeAuthRepository(),
       ),
@@ -249,6 +257,115 @@ void main() {
       expect(container.read(sessionProvider).buyerId, isNull);
       expect(container.read(apiClientProvider).isAuthenticated, isFalse);
       expect(await store.read(), isNull);
+    });
+  });
+
+  group('demo sign-in', () {
+    test('takes over when nothing is stored', () async {
+      final container = makeContainer(demoSignIn: true);
+
+      await container.read(sessionProvider.notifier).restore();
+
+      final session = container.read(sessionProvider);
+      expect(session.status, SessionStatus.signedIn);
+      expect(session.isDemo, isTrue);
+      expect(session.buyerId, SessionController.demoBuyerId);
+      // A user, not a bare id: the drawer renders a number and a role, and an
+      // empty one there reads as a bug rather than as a demo.
+      expect(session.user?.role, 'buyer');
+      expect(session.phoneNumber, SessionController.demoPhoneNumber);
+    });
+
+    test('presents no token, because there is no gateway to present one to', () async {
+      // A fake Authorization header would turn every request into a puzzling
+      // 401 instead of an obvious unauthenticated call.
+      final container = makeContainer(demoSignIn: true);
+
+      await container.read(sessionProvider.notifier).restore();
+
+      expect(container.read(sessionProvider).authToken, isNull);
+      expect(container.read(apiClientProvider).isAuthenticated, isFalse);
+    });
+
+    test('does not displace a real stored session', () async {
+      final container = makeContainer(
+        demoSignIn: true,
+        tokenStore: InMemoryTokenStore(
+          const StoredSession(
+            token: 'stored.jwt',
+            userId: 'u-1',
+            phoneNumber: '+923001234567',
+            role: 'seller',
+          ),
+        ),
+      );
+
+      await container.read(sessionProvider.notifier).restore();
+
+      final session = container.read(sessionProvider);
+      expect(session.isDemo, isFalse);
+      expect(session.buyerId, 'u-1');
+    });
+
+    test('covers an unreadable store too', () async {
+      // A sideloaded build whose secure storage is unavailable should still
+      // open on the feed rather than on a login screen it cannot get past.
+      final container = makeContainer(
+        demoSignIn: true,
+        tokenStore: _ThrowingTokenStore(),
+      );
+
+      await container.read(sessionProvider.notifier).restore();
+
+      expect(container.read(sessionProvider).isDemo, isTrue);
+    });
+
+    test('signing out stays signed out rather than looping back in', () async {
+      final container = makeContainer(demoSignIn: true);
+      await container.read(sessionProvider.notifier).restore();
+      expect(container.read(sessionProvider).isDemo, isTrue);
+
+      await container.read(sessionProvider.notifier).signOut();
+
+      // Sign out is a deliberate act; re-entering demo mode behind it would
+      // make the button look broken.
+      expect(container.read(sessionProvider).status, SessionStatus.signedOut);
+      expect(container.read(sessionProvider).isDemo, isFalse);
+    });
+
+    test('a real sign-in replaces the demo identity', () async {
+      final container = makeContainer(demoSignIn: true);
+      await container.read(sessionProvider.notifier).restore();
+
+      await container
+          .read(sessionProvider.notifier)
+          .verifyOtp(phoneNumber: '+923001234567', code: '123456');
+
+      final session = container.read(sessionProvider);
+      expect(session.isDemo, isFalse);
+      expect(session.buyerId, '22222222-2222-2222-2222-222222222222');
+      expect(session.authToken, 'jwt.token.value');
+    });
+
+    test('is refused outside development, whatever the caller asks for', () {
+      for (final flavor in ['staging', 'production']) {
+        final container = makeContainer(demoSignIn: true, flavorName: flavor);
+
+        expect(
+          () => container.read(sessionProvider.notifier).signInAsDemo(),
+          throwsStateError,
+          reason: '$flavor must refuse a demo sign-in',
+        );
+      }
+    });
+
+    test('is refused in a development build that opted out', () {
+      final container = makeContainer(demoSignIn: false);
+
+      expect(
+        () => container.read(sessionProvider.notifier).signInAsDemo(),
+        throwsStateError,
+      );
     });
   });
 }

@@ -26,6 +26,7 @@ class Session {
     this.buyerId,
     this.authToken,
     this.user,
+    this.isDemo = false,
   });
 
   final SessionStatus status;
@@ -34,8 +35,14 @@ class Session {
   final String? buyerId;
   final String? authToken;
 
-  /// Present for a real sign-in; absent for the DEMO_BUYER_ID shortcut.
+  /// Present for a real sign-in and for the demo identity; absent only for the
+  /// bare DEMO_BUYER_ID shortcut, which carries an id and nothing else.
   final AuthUser? user;
+
+  /// Whether this identity came from [SessionController.signInAsDemo] rather
+  /// than from an OTP the gateway verified. The UI says so out loud; nothing
+  /// should ever present a demo session as a real one.
+  final bool isDemo;
 
   bool get isAuthenticated => buyerId != null && buyerId!.isNotEmpty;
   bool get isRestoring => status == SessionStatus.restoring;
@@ -48,11 +55,13 @@ class Session {
     String? buyerId,
     String? authToken,
     AuthUser? user,
+    bool? isDemo,
   }) => Session(
     status: status ?? this.status,
     buyerId: buyerId ?? this.buyerId,
     authToken: authToken ?? this.authToken,
     user: user ?? this.user,
+    isDemo: isDemo ?? this.isDemo,
   );
 }
 
@@ -84,7 +93,23 @@ class SessionController extends Notifier<Session> {
   Future<void> restore() async {
     try {
       final stored = await ref.read(tokenStoreProvider).read();
+
+      // A sign-in or a sign-out can land while secure storage is still being
+      // read. This is the startup read — the weakest claim on the session —
+      // so it yields to whatever happened rather than overwriting it. Without
+      // this, signing out during a slow Keychain read silently signs you back
+      // in a moment later.
+      if (state.status != SessionStatus.restoring) return;
+
       if (stored == null) {
+        // Demo is the fallback for having nothing stored, not a replacement
+        // for a real session: a stored token below still wins, and signOut
+        // still lands on the login screen rather than looping straight back
+        // in here.
+        if (ref.read(envConfigProvider).allowsDemoSignIn) {
+          signInAsDemo();
+          return;
+        }
         state = const Session(status: SessionStatus.signedOut);
         return;
       }
@@ -101,10 +126,58 @@ class SessionController extends Notifier<Session> {
       );
     } on Object {
       // A store that cannot be read — a wiped Keychain, a corrupt record —
-      // means signed out, not a crash on launch.
+      // means signed out, not a crash on launch. In a demo build it means the
+      // demo identity, for the same reason: a sideloaded APK whose secure
+      // storage is unavailable should still open on the feed.
+      if (state.status != SessionStatus.restoring) return;
+
+      if (ref.read(envConfigProvider).allowsDemoSignIn) {
+        signInAsDemo();
+        return;
+      }
       state = const Session(status: SessionStatus.signedOut);
     }
   }
+
+  /// Enters the app as the demo buyer, with no OTP and no gateway.
+  ///
+  /// Refuses outside a development build. The screens this unlocks are the
+  /// whole app, so the guard is an assertion about the build rather than a
+  /// caller's promise — [EnvConfig.allowsDemoSignIn] is false in staging and
+  /// production no matter what `--dart-define` was passed.
+  void signInAsDemo() {
+    final env = ref.read(envConfigProvider);
+    if (!env.allowsDemoSignIn) {
+      throw StateError(
+        'Demo sign-in is development-only and this build is ${env.flavor.name}.',
+      );
+    }
+
+    // No token: there is no gateway to present one to, and writing a fake
+    // Authorization header would turn every request into a confusing 401
+    // rather than an obvious "not signed in".
+    ref.read(apiClientProvider).authToken = null;
+    state = const Session(
+      status: SessionStatus.signedIn,
+      buyerId: demoBuyerId,
+      isDemo: true,
+      user: AuthUser(
+        id: demoBuyerId,
+        phoneNumber: demoPhoneNumber,
+        role: 'buyer',
+        languagePreference: 'urdu',
+        isVerified: false,
+      ),
+    );
+  }
+
+  /// The demo identity's buyer id, stable so order flows have something to
+  /// key on across a session.
+  static const String demoBuyerId = 'demo-buyer';
+
+  /// All-zero subscriber part, so it is well-formed enough to render in the
+  /// drawer but cannot be anyone's actual number in a screenshot.
+  static const String demoPhoneNumber = '+92 300 0000000';
 
   /// Asks the gateway to send a code. Throws [ApiException] on failure.
   Future<OtpChallenge> requestOtp(String phoneNumber) =>

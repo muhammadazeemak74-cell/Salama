@@ -128,12 +128,16 @@ jobs:
 
           ### What this build does
 
-          It is a **development** build with no backend attached. It starts on
-          the phone-login screen, and requesting an OTP will fail — that is the
-          auth gate working, not a bug. Everything else runs against a bundled
+          It is a **development** build with no backend attached, so it opens
+          straight on the feed as a guest — no phone number, no SMS code. The
+          drawer marks that session `DEMO`. Everything runs against a bundled
           sample feed, and a pill under the status bar says so. You can browse
           the video feed, open the solo and team buy sheets, and use the voice
           search sheet.
+
+          Signing out from the drawer shows the real phone-login screen, which
+          is worth a look but cannot complete without a gateway to send the
+          code. **Browse as guest (demo)** on that screen puts you back in.
 
           ### What it is not
 
@@ -145,6 +149,10 @@ jobs:
             service and the media service running. `docker compose up` in
             `boloshop/` starts all three; an Android emulator reaches them at
             `10.0.2.2`, which the app's network security config permits.
+          - **Not a build with authentication disabled.** The guest session is
+            development-only: `EnvConfig.allowsDemoSignIn` ands the flag with
+            the flavour, so staging and production builds refuse it and the
+            guest button does not exist there.
           - The internal versionName is Flutter's default `1.0.0`. App
             versioning is not wired to these tags yet.
 

@@ -99,8 +99,23 @@ class ProfileDrawer extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            _RoleChip(
-                              label: roleLabel(session.user?.role),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _RoleChip(
+                                  label: roleLabel(session.user?.role),
+                                ),
+                                // A demo identity looks exactly like a real
+                                // one here — same number, same role — so it
+                                // has to say which it is.
+                                if (session.isDemo) ...[
+                                  const SizedBox(width: 6),
+                                  const _RoleChip(
+                                    label: 'DEMO',
+                                    muted: true,
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -195,25 +210,29 @@ class ProfileDrawer extends ConsumerWidget {
 }
 
 class _RoleChip extends StatelessWidget {
-  const _RoleChip({required this.label});
+  const _RoleChip({required this.label, this.muted = false});
 
   final String label;
 
+  /// Draws in the secondary text colour rather than the brand green, for a
+  /// chip that qualifies the identity instead of describing it.
+  final bool muted;
+
   @override
   Widget build(BuildContext context) {
+    final color = muted ? AppColors.textSecondary : AppColors.primaryGreen;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.primaryGreen.withValues(alpha: 0.16),
+        color: color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppColors.primaryGreen.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: AppColors.primaryGreen,
+          color: color,
           fontWeight: FontWeight.w700,
         ),
       ),

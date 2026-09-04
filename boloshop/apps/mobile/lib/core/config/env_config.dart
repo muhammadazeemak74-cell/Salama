@@ -63,6 +63,7 @@ class EnvConfig {
     required this.flavor,
     required this.gatewayBaseUrl,
     required this.orderServiceBaseUrl,
+    this.allowsDemoSignIn = false,
   });
 
   final AppFlavor flavor;
@@ -78,6 +79,23 @@ class EnvConfig {
   /// live code on screen would hand anyone holding the phone a valid session.
   bool get showsDevOtp => isDevelopment;
 
+  /// Whether the app may put itself in a signed-in state with no OTP.
+  ///
+  /// On by default in development, because a development build points at
+  /// `localhost` and a sideloaded APK has no backend to point at: the login
+  /// screen requests a code that never arrives, so every screen behind it is
+  /// unreachable and the build cannot be reviewed at all. This makes the feed
+  /// the launch screen instead.
+  ///
+  /// Turn it off to exercise the real login flow against a running gateway:
+  ///
+  ///     flutter run --dart-define=DEMO_SIGN_IN=false
+  ///
+  /// Never true outside development. [from] ands it with the flavour, so no
+  /// combination of `--dart-define` produces a staging or production build
+  /// that skips authentication — passing the flag there changes nothing.
+  final bool allowsDemoSignIn;
+
   String baseUrlFor(ApiService service) => switch (service) {
     ApiService.gateway => gatewayBaseUrl,
     ApiService.orders => orderServiceBaseUrl,
@@ -88,6 +106,7 @@ class EnvConfig {
     flavorName: const String.fromEnvironment('APP_ENV'),
     gatewayOverride: const String.fromEnvironment('GATEWAY_BASE_URL'),
     ordersOverride: const String.fromEnvironment('ORDER_SERVICE_BASE_URL'),
+    demoSignIn: const bool.fromEnvironment('DEMO_SIGN_IN', defaultValue: true),
   );
 
   /// The resolution itself, with its inputs passed in so it can be tested
@@ -96,6 +115,7 @@ class EnvConfig {
     required String flavorName,
     String gatewayOverride = '',
     String ordersOverride = '',
+    bool demoSignIn = false,
     TargetPlatform? platform,
   }) {
     final flavor = AppFlavor.parse(flavorName);
@@ -116,6 +136,8 @@ class EnvConfig {
       flavor: flavor,
       gatewayBaseUrl: gateway,
       orderServiceBaseUrl: orders,
+      // The `&&` is the guard, not the caller's promise.
+      allowsDemoSignIn: demoSignIn && flavor == AppFlavor.development,
     );
   }
 

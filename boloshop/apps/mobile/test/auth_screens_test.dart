@@ -37,6 +37,46 @@ void main() {
       expect(find.text('Send code'), findsOneWidget);
     });
 
+    testWidgets('offers a way back in for a demo build', (tester) async {
+      // Signing out of a demo build lands here, and without this the login
+      // screen is a dead end: the OTP it sends for has no gateway to come
+      // from.
+      await tester.pumpWidget(
+        wrap(
+          const PhoneLoginScreen(),
+          overrides: [
+            envConfigProvider.overrideWithValue(
+              EnvConfig.from(flavorName: 'development', demoSignIn: true),
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Browse as guest (demo)'), findsOneWidget);
+    });
+
+    testWidgets('never offers the guest shortcut in production', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          const PhoneLoginScreen(),
+          overrides: [
+            envConfigProvider.overrideWithValue(
+              // Asking for it and being refused, which is the case that
+              // matters: the flavour decides, not the flag.
+              EnvConfig.from(flavorName: 'production', demoSignIn: true),
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Browse as guest (demo)'), findsNothing);
+      expect(find.text('Send code'), findsOneWidget);
+    });
+
     testWidgets('formats keystrokes as 3XX XXXXXXX', (tester) async {
       await tester.pumpWidget(wrap(const PhoneLoginScreen()));
       await tester.pump();

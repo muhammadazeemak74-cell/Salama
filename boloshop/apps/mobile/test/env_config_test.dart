@@ -136,6 +136,43 @@ void main() {
     });
   });
 
+  group('allowsDemoSignIn', () {
+    test('is on in a development build that asked for it', () {
+      final env = EnvConfig.from(flavorName: 'development', demoSignIn: true);
+      expect(env.allowsDemoSignIn, isTrue);
+    });
+
+    test('is off in a development build that opted out', () {
+      // --dart-define=DEMO_SIGN_IN=false, to exercise the real login flow
+      // against a running gateway.
+      final env = EnvConfig.from(flavorName: 'development', demoSignIn: false);
+      expect(env.allowsDemoSignIn, isFalse);
+    });
+
+    test('cannot be turned on outside development', () {
+      // The whole point of the flag: no --dart-define combination ships an
+      // app that lets someone past the login screen without an OTP.
+      for (final flavor in ['staging', 'production']) {
+        final env = EnvConfig.from(flavorName: flavor, demoSignIn: true);
+        expect(
+          env.allowsDemoSignIn,
+          isFalse,
+          reason: '$flavor must not allow a demo sign-in',
+        );
+      }
+    });
+
+    test('defaults to off when the caller says nothing', () {
+      // Only EnvConfig.resolve() opts in, from the compile-time define.
+      expect(EnvConfig.from(flavorName: 'development').allowsDemoSignIn, isFalse);
+      expect(const EnvConfig(
+        flavor: AppFlavor.development,
+        gatewayBaseUrl: 'http://localhost:4000',
+        orderServiceBaseUrl: 'http://localhost:4002',
+      ).allowsDemoSignIn, isFalse);
+    });
+  });
+
   test('baseUrlFor routes each service to its own backend', () {
     final env = EnvConfig.from(flavorName: 'production');
 

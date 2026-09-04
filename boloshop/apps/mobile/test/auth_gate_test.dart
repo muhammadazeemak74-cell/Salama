@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:boloshop/core/config/env_config.dart';
 import 'package:boloshop/core/session/token_store.dart';
 import 'package:boloshop/features/auth/data/auth_repository.dart';
 import 'package:boloshop/features/auth/domain/auth_models.dart';
@@ -72,10 +73,22 @@ class FakeAuthRepository implements AuthRepository {
 
 /// Boots the real app. The feed animates forever, so every pump here is a
 /// fixed duration — pumpAndSettle would time out rather than fail honestly.
-Future<void> pumpApp(WidgetTester tester, {required TokenStore store}) async {
+///
+/// [demoSignIn] is off by default because these tests are about the real gate:
+/// with it on, having no token opens the feed instead of the login screen,
+/// which is the whole point of that mode and the opposite of what most of
+/// these assert.
+Future<void> pumpApp(
+  WidgetTester tester, {
+  required TokenStore store,
+  bool demoSignIn = false,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        envConfigProvider.overrideWithValue(
+          EnvConfig.from(flavorName: 'development', demoSignIn: demoSignIn),
+        ),
         tokenStoreProvider.overrideWithValue(store),
         feedRepositoryProvider.overrideWithValue(FakeFeedRepository()),
         authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
@@ -145,6 +158,17 @@ void main() {
     // Persisted, or the next cold start would send them back to the login
     // screen with no explanation.
     expect((await store.read())?.token, 'jwt.token.value');
+  });
+
+  testWidgets('demo mode opens the feed instead of the login screen', (
+    tester,
+  ) async {
+    // The reason the mode exists: a sideloaded APK has no gateway, so an OTP
+    // never arrives and every screen behind the gate is otherwise unreachable.
+    await pumpApp(tester, store: InMemoryTokenStore(), demoSignIn: true);
+
+    expect(find.byType(FeedScreen), findsOneWidget);
+    expect(find.byType(PhoneLoginScreen), findsNothing);
   });
 
   testWidgets('treats an unreadable store as signed out, not as a crash', (
