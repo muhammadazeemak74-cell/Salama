@@ -1,0 +1,146 @@
+# BoloShop CI.
+#
+# This file lives at the repository root, not in boloshop/: GitHub only reads
+# workflows from <repo root>/.github/workflows, and one under the subfolder
+# would never run. The work happens in boloshop/ via `defaults.run`.
+#
+# Note that `defaults.run.working-directory` applies ONLY to `run:` steps.
+# Paths passed to actions as inputs — go-version-file, cache-dependency-path —
+# are always relative to the repository root, so those are written out in full.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A second push to the same branch makes the first run's answer worthless.
+# Cancel it rather than queue behind it; a push to main is exempt, since that
+# result is the one people go back and read.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: boloshop
+
+jobs:
+  order-service:
+    name: Go order service
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: boloshop/services/order-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # From go.mod rather than a literal here, so the toolchain CI builds
+          # with and the one the module declares cannot drift apart.
+          go-version-file: boloshop/services/order-service/go.mod
+          # Caches the module download cache and the build cache.
+          cache-dependency-path: boloshop/services/order-service/go.sum
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -v ./...
+
+  typescript:
+    name: TypeScript services
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Both Jest suites exercise Lua running inside Redis — the OTP attempt
+    # counter, the resend cooldown, the atomic credit deduction — and no
+    # in-memory double runs those, so the suites need a real server. They use
+    # database 15 and their own key prefixes.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: boloshop/package-lock.json
+
+      # Installs every workspace — packages/db, services/api-gateway,
+      # services/media-service — from the lockfile in one go.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  mobile:
+    name: Flutter app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: boloshop/apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # Caches the SDK itself, which is the slow half of this job.
+          cache: true
+
+      # The SDK cache and the package cache are separate things; this one is
+      # keyed on the lockfile, so it is only rebuilt when a dependency moves.
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
