@@ -276,7 +276,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                 ),
               ],
 
-              if (widget.devOtp != null) ...[
+              // The gateway only returns dev_otp outside production, but the
+              // build decides too: a staging APK talks to a real SMS provider,
+              // and printing a live code on screen hands anyone holding the
+              // phone a valid session.
+              if (widget.devOtp != null &&
+                  ref.watch(envConfigProvider).showsDevOtp) ...[
                 const SizedBox(height: 16),
                 _DevCodeHint(code: widget.devOtp!),
               ],

@@ -30,7 +30,7 @@ lib/features/voice/                              Bolo search modal and its filte
 flutter pub get
 flutter run
 flutter analyze     # must be clean
-flutter test        # 62 unit and widget tests
+flutter test        # unit, widget and release-config tests
 ```
 
 Point the app at your machine's backends:
@@ -45,6 +45,59 @@ Without those defines it targets `localhost:4000` and `localhost:4002` — excep
 on Android, where it rewrites the host to `10.0.2.2`. Inside an emulator
 `localhost` is the emulator itself, not your machine, and the resulting failure
 looks exactly like the server being down.
+
+## Environments
+
+`lib/core/config/env_config.dart` decides where a build points, at compile
+time, because it must be impossible to change from inside a shipped app.
+
+| `--dart-define=APP_ENV=` | gateway | order service |
+| --- | --- | --- |
+| *(unset)* / `development` | `localhost:4000` (`10.0.2.2` on Android) | `localhost:4002` |
+| `staging` | `https://staging-api.boloshop.pk` | `https://staging-orders.boloshop.pk` |
+| `production` | `https://api.boloshop.pk` | `https://orders.boloshop.pk` |
+
+```bash
+flutter build appbundle --dart-define=APP_ENV=production
+```
+
+`GATEWAY_BASE_URL` and `ORDER_SERVICE_BASE_URL` still override either one on
+its own, which is what testing against a preview deployment needs.
+
+Two things fail the build rather than degrading quietly. An unrecognised
+`APP_ENV` throws instead of falling back to development — a typo'd `APP_ENV=prod`
+that shipped a production APK pointed at `localhost` would not surface until
+the first user opened it. And a cleartext URL outside development throws:
+every request carries the session JWT, a bearer credential good for thirty
+days. Both inputs are compile-time constants, so a build that would throw
+throws the first time anyone opens it, never only in a user's hands.
+
+The flavour also gates the gateway's `dev_otp` hint on the verify screen.
+Staging talks to a real SMS provider, and printing a live code on screen would
+hand anyone holding the phone a valid session.
+
+## Release builds
+
+```bash
+flutter build appbundle --dart-define=APP_ENV=production
+```
+
+Signing reads `android/key.properties`, which is gitignored — copy
+`android/key.properties.example` and fill it in on the machine that signs
+releases. Without it the release build falls back to the debug key and says so;
+that installs locally but Play will not accept it.
+
+Release builds run R8 with `android/app/proguard-rules.pro`. Those rules cover
+the Java and Kotlin half only — the Flutter embedding and the plugins. Dart is
+compiled ahead of time into `libapp.so` and R8 never sees it, so the app's own
+models and their `fromJson` need no rules and would not be helped by one. What
+does need them is anything reached reflectively: `flutter_secure_storage` and
+the Tink crypto under it (get this wrong and the release build silently signs
+users out on every launch, while debug stays fine), Media3's runtime renderer
+selection, and the plugin registrant.
+
+`test/release_config_test.dart` guards the parts of this that no debug run and
+no widget test would ever exercise.
 
 If the gateway is unreachable the feed falls back to four sample products and
 says so in a pill under the status bar, rather than pretending a hardcoded list

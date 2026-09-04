@@ -1,8 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Upload-key credentials, kept out of the repository. Create
+// android/key.properties from key.properties.example on the machine that
+// signs releases; it is gitignored, and a build without it falls back to the
+// debug key so `flutter run --release` still works for everyone else.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseKey = keystorePropertiesFile.exists()
 
 android {
     namespace = "com.boloshop.boloshop"
@@ -29,11 +43,57 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKey) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // The debug key produces an installable build but one Play will
+            // not accept, which is the right trade for a contributor who only
+            // wants to check performance locally.
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.lifecycle(
+                    "android/key.properties not found — signing the release " +
+                        "build with the debug key. This artifact cannot be uploaded to Play."
+                )
+                signingConfigs.getByName("debug")
+            }
+
+            // R8 shrinks and obfuscates the Java/Kotlin half of the app: the
+            // Flutter embedding and the plugins. Dart is compiled ahead of
+            // time to a native library and is untouched by any of this.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+
+            // Uploads the native symbol table with the bundle, so a crash in
+            // the Dart or engine .so arrives in Play Console as a stack trace
+            // rather than as hexadecimal.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
+        }
+    }
+
+    bundle {
+        // Flutter carries its own localisations inside the Dart snapshot, so a
+        // Play language split can strip resources the app still asks for while
+        // saving almost nothing. Density and ABI splits stay on.
+        language {
+            enableSplit = false
         }
     }
 }

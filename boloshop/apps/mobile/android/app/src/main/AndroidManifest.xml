@@ -1,4 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need this declared HERE. The Flutter template only puts
+         it in the debug and profile manifests, for the tooling's own hot-reload
+         channel — so a release APK built without this line has no network
+         access at all, and every screen fails with a connection error that
+         looks like the backend being down. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Voice search. Declared as not required so the app still installs on a
+         device without a microphone; the feed and checkout do not need one. -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false"/>
+
     <application
         android:label="BoloShop"
         android:name="${applicationName}"

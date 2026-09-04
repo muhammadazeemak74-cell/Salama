@@ -1,67 +1,13 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Which backend a request is going to.
-///
-/// BoloShop is two services behind one app: the Express gateway owns auth,
-/// catalog and media, and the Go service owns orders, tracking and team buys.
-/// They are separate ports in development and will be separate hostnames in
-/// production, so the app never hardcodes one and hopes.
-enum ApiService {
-  /// services/api-gateway — auth, products, media.
-  gateway,
+import '../config/env_config.dart';
 
-  /// services/order-service — orders, tracking, team purchases.
-  orders,
-}
-
-/// Base URLs for both services.
-class ApiEnvironment {
-  const ApiEnvironment({
-    required this.gatewayBaseUrl,
-    required this.orderServiceBaseUrl,
-  });
-
-  final String gatewayBaseUrl;
-  final String orderServiceBaseUrl;
-
-  /// Resolves the environment for the running build.
-  ///
-  /// Override either URL at build time:
-  ///
-  ///   flutter run --dart-define=GATEWAY_BASE_URL=https://api.boloshop.pk
-  ///
-  /// The Android emulator quirk is handled rather than documented-and-forgotten:
-  /// `localhost` inside an emulator is the emulator itself, not the developer's
-  /// machine, so a plain `http://localhost:4000` fails there in a way that
-  /// looks like the server is down. 10.0.2.2 is the host loopback alias.
-  factory ApiEnvironment.resolve() {
-    const gatewayOverride = String.fromEnvironment('GATEWAY_BASE_URL');
-    const ordersOverride = String.fromEnvironment('ORDER_SERVICE_BASE_URL');
-
-    return ApiEnvironment(
-      gatewayBaseUrl: gatewayOverride.isNotEmpty
-          ? gatewayOverride
-          : _localhost(4000),
-      orderServiceBaseUrl: ordersOverride.isNotEmpty
-          ? ordersOverride
-          : _localhost(4002),
-    );
-  }
-
-  static String _localhost(int port) {
-    final host = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-        ? '10.0.2.2'
-        : 'localhost';
-    return 'http://$host:$port';
-  }
-
-  String baseUrlFor(ApiService service) => switch (service) {
-    ApiService.gateway => gatewayBaseUrl,
-    ApiService.orders => orderServiceBaseUrl,
-  };
-}
+// Which backend a call is for, and where that backend lives, are one decision
+// — see core/config/env_config.dart. Re-exported so call sites keep importing
+// only the client.
+export '../config/env_config.dart'
+    show ApiService, AppFlavor, EnvConfig, envConfigProvider;
 
 /// A failure the app can show a user.
 ///
@@ -103,24 +49,22 @@ class ApiException implements Exception {
 /// here — timeouts, auth header, error translation — so no call site has to
 /// remember any of it.
 class ApiClient {
-  ApiClient({
-    required ApiEnvironment environment,
-    Dio? gatewayDio,
-    Dio? ordersDio,
-  }) : _environment = environment,
-       _clients = {
-         ApiService.gateway:
-             gatewayDio ?? _buildDio(environment.gatewayBaseUrl),
-         ApiService.orders:
-             ordersDio ?? _buildDio(environment.orderServiceBaseUrl),
-       };
+  ApiClient({required EnvConfig env, Dio? gatewayDio, Dio? ordersDio})
+    : _env = env,
+      _clients = {
+        ApiService.gateway:
+            gatewayDio ?? _buildDio(env.baseUrlFor(ApiService.gateway)),
+        ApiService.orders:
+            ordersDio ?? _buildDio(env.baseUrlFor(ApiService.orders)),
+      };
 
-  final ApiEnvironment _environment;
+  final EnvConfig _env;
   final Map<ApiService, Dio> _clients;
 
   String? _authToken;
 
-  ApiEnvironment get environment => _environment;
+  /// Where this build points. Read it rather than a literal anywhere else.
+  EnvConfig get env => _env;
 
   /// The JWT from `POST /api/v1/auth/verify-otp`. Sent on every subsequent
   /// request to either service.
@@ -265,14 +209,9 @@ class ApiClient {
   }
 }
 
-/// The environment for this build.
-final apiEnvironmentProvider = Provider<ApiEnvironment>(
-  (ref) => ApiEnvironment.resolve(),
-);
-
-/// The app-wide client.
+/// The app-wide client, pointed wherever [envConfigProvider] says.
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final client = ApiClient(environment: ref.watch(apiEnvironmentProvider));
+  final client = ApiClient(env: ref.watch(envConfigProvider));
   ref.onDispose(client.close);
   return client;
 });

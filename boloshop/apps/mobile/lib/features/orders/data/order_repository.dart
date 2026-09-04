@@ -5,8 +5,8 @@ import '../domain/order_models.dart';
 
 /// Calls the Go order service.
 ///
-/// Both endpoints are on [ApiService.orders] — `http://localhost:4002` by
-/// default, `10.0.2.2` on Android. See ApiEnvironment.
+/// Both endpoints are on [ApiService.orders], wherever the build's [EnvConfig]
+/// puts that — localhost:4002 in development, a real hostname otherwise.
 class OrderRepository {
   const OrderRepository(this._client);
 
