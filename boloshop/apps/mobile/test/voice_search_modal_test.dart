@@ -3,7 +3,6 @@ import 'package:boloshop/features/voice/domain/voice_filter.dart';
 import 'package:boloshop/features/voice/presentation/widgets/voice_search_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// The scripted capture runs on timers, and the waveform repeats forever —
 /// so pumpAndSettle can never be used here. These advance the clock explicitly.
@@ -36,8 +35,6 @@ Future<void> disposeModal(WidgetTester tester) async {
 }
 
 void main() {
-  setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
-
   testWidgets('opens listening in Roman Urdu', (tester) async {
     await pumpModal(tester);
 

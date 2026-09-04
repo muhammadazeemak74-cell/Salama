@@ -7,7 +7,6 @@ import 'package:boloshop/features/feed/presentation/screens/feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Pumps the feed for a fixed duration.
 ///
@@ -43,10 +42,6 @@ class RecordingLauncher implements UrlLauncherService {
 }
 
 void main() {
-  setUpAll(() {
-    // Otherwise every test would try to fetch Inter over the network.
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
 
   testWidgets('renders the live badge and the Bolo voice button', (
     tester,

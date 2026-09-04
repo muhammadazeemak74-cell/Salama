@@ -48,6 +48,18 @@ function resolveFontPath(): string | undefined {
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const storageRoot = resolve(process.env.MEDIA_STORAGE_PATH ?? './uploads');
 
+/** A 15s vertical render is CPU-bound; past this something is wrong. */
+const renderTimeoutMs = intEnv('RENDER_TIMEOUT_MS', 180_000);
+
+/**
+ * The sweeper deletes by modification time, and a work directory's mtime
+ * stops moving while FFmpeg encodes — so a TTL shorter than a render could
+ * delete the drawtext files out from under a job that is still running. Floor
+ * every TTL at twice the render timeout, whatever the environment asks for.
+ */
+const ttlMinutes = (name: string, fallbackMinutes: number): number =>
+  Math.max(intEnv(name, fallbackMinutes) * 60_000, renderTimeoutMs * 2);
+
 export const config = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
@@ -67,6 +79,33 @@ export const config = {
     renders: resolve(storageRoot, 'renders'),
   },
 
+  /**
+   * Ephemeral disk cleanup. See services/sweeper.ts.
+   *
+   * Without this `renders/` grows on every job and nothing removes from it,
+   * which ends as ENOSPC weeks after launch rather than as an error anyone
+   * can act on.
+   */
+  sweeper: {
+    /** How often a pass runs. 0 switches the sweeper off entirely. */
+    intervalMs: intEnv('MEDIA_SWEEP_INTERVAL_MINUTES', 15) * 60_000,
+    /**
+     * How long a finished MP4 is kept. A seller fetches a promo in the minutes
+     * after it renders, and the job record naming it is evicted from memory
+     * after an hour, so a day is already generous.
+     */
+    renderTtlMs: ttlMinutes('MEDIA_RENDER_TTL_MINUTES', 24 * 60),
+    /** How long leftover uploads and scratch are kept. */
+    scratchTtlMs: ttlMinutes('MEDIA_SCRATCH_TTL_MINUTES', 60),
+    /**
+     * Delete the oldest renders when the directory exceeds this many bytes.
+     * 0 means no cap, which is the default: discarding a render a seller paid
+     * a credit for because the disk is busy is a product decision, not a
+     * default. Set it where the volume is small and known.
+     */
+    maxRenderBytes: intEnv('MEDIA_MAX_RENDER_MB', 0) * 1024 * 1024,
+  },
+
   ffmpeg: {
     // Not a path by default: resolved on PATH, like any other CLI.
     binary: process.env.FFMPEG_PATH ?? 'ffmpeg',
@@ -74,8 +113,7 @@ export const config = {
     fontPath: resolveFontPath(),
     /** What FONT_PATH was set to, for diagnostics when it does not resolve. */
     fontPathConfigured: configuredFontPath,
-    /** A 15s vertical render is CPU-bound; past this something is wrong. */
-    timeoutMs: intEnv('RENDER_TIMEOUT_MS', 180_000),
+    timeoutMs: renderTimeoutMs,
     /** Re-probe the binary at most this often when /health is polled. */
     probeCacheMs: intEnv('FFMPEG_PROBE_CACHE_MS', 30_000),
   },

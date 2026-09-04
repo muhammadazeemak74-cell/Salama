@@ -102,7 +102,12 @@ the whole file arrives — the difference between usable and not on a 3G link.
    B, and a restart loses every job. This wants Redis, which the architecture
    already calls for, before running more than one instance.
 3. **Renders are stored on local disk.** Fine for one box; move `renders/` to
-   object storage and set `PUBLIC_BASE_URL` to the CDN before scaling out.
+   object storage and set `PUBLIC_BASE_URL` to the CDN before scaling out. The
+   sweeper (`src/services/sweeper.ts`) deletes a finished MP4 a day after it is
+   written and any scratch a crashed render left behind, so the volume does not
+   fill — `MEDIA_RENDER_TTL_MINUTES` and the rest of the `MEDIA_SWEEP_*`
+   settings are in `.env.example`. It sweeps this box's disk only; object
+   storage needs its own lifecycle rule.
 4. **Rendering runs in the request process.** One render saturates a core for
    its whole duration. Move it to a worker pool or a queue before concurrency
    matters.

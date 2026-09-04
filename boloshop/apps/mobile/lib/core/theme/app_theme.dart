@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
@@ -22,6 +21,14 @@ abstract final class AppTheme {
     systemNavigationBarDividerColor: Colors.transparent,
   );
 
+  /// The bundled interface face.
+  static const String fontFamily = 'Inter';
+
+  /// Tried when [fontFamily] has no glyph for a character. Inter has no
+  /// Arabic-script coverage, so an Urdu product title from a seller would
+  /// otherwise render as empty boxes.
+  static const List<String> fontFamilyFallback = <String>['Noto Nastaliq Urdu'];
+
   static ThemeData get dark {
     const colorScheme = ColorScheme.dark(
       primary: AppColors.primaryGreen,
@@ -36,12 +43,14 @@ abstract final class AppTheme {
 
     // Inter carries Urdu-adjacent Latin transliteration and long product names
     // at small sizes better than the platform defaults, and it ships a real
-    // 800 weight for the price row.
-    final textTheme = GoogleFonts.interTextTheme(ThemeData.dark().textTheme)
-        .apply(
-          bodyColor: AppColors.textPrimary,
-          displayColor: AppColors.textPrimary,
-        );
+    // 800 weight for the price row. It comes from assets/fonts, declared in
+    // pubspec.yaml — nothing here reaches the network for a typeface.
+    final textTheme = ThemeData.dark().textTheme.apply(
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -49,6 +58,10 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.darkBackground,
       canvasColor: AppColors.darkBackground,
+      // On ThemeData as well as the text theme: widgets that build a TextStyle
+      // from scratch rather than from textTheme pick it up here.
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       textTheme: textTheme,
       // The feed owns the whole frame; app bars are transparent when present.
       appBarTheme: const AppBarTheme(

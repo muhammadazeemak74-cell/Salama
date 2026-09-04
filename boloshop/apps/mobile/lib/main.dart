@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,8 @@ import 'features/feed/presentation/screens/feed_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  registerFontLicenses();
 
   // The feed is the product, so it gets the whole panel: the system bars stay
   // visible but transparent, and the video runs underneath them.
@@ -27,6 +30,22 @@ void main() {
   ]);
 
   runApp(const ProviderScope(child: BoloShopApp()));
+}
+
+/// Puts the bundled fonts' licence on the app's licences page.
+///
+/// Inter and Noto Nastaliq Urdu ship under the SIL Open Font License, which
+/// requires the licence to accompany the fonts wherever they go — including
+/// into an APK. `google_fonts` used to do this for us; bundling the files
+/// ourselves means doing it ourselves.
+void registerFontLicenses() {
+  LicenseRegistry.addLicense(() async* {
+    final license = await rootBundle.loadString('assets/fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(const <String>[
+      'Inter',
+      'Noto Nastaliq Urdu',
+    ], license);
+  });
 }
 
 class BoloShopApp extends StatelessWidget {

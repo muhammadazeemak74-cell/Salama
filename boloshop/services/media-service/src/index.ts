@@ -15,6 +15,7 @@ import { createApp } from './app.ts';
 import { config } from './config.ts';
 import { probeFfmpeg } from './services/ffmpeg.ts';
 import { ensureStorage } from './services/storage.ts';
+import { startSweeper } from './services/sweeper.ts';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -66,6 +67,12 @@ async function reportDependencies(): Promise<void> {
 async function main(): Promise<void> {
   await ensureStorage();
   console.info(`[media-service] storage ready at ${config.storage.root}`);
+
+  // Starts with a pass now, then every MEDIA_SWEEP_INTERVAL_MINUTES. The
+  // boot sweep in ensureStorage only clears scratch; this is what keeps
+  // finished renders from filling the volume.
+  const stopSweeper = startSweeper();
+
   await reportDependencies();
 
   const app = createApp();
@@ -84,6 +91,7 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.info(`[media-service] ${signal} received, shutting down`);
+    stopSweeper();
 
     const timer = setTimeout(() => {
       console.error('[media-service] shutdown timed out, exiting');

@@ -12,7 +12,6 @@ import 'package:boloshop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 StoredSession sessionAs(String role) => StoredSession(
   token: 'stored.jwt',
@@ -79,9 +78,6 @@ Finder inDrawer(Finder finder) =>
     find.descendant(of: find.byType(ProfileDrawer), matching: finder);
 
 void main() {
-  setUpAll(() {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
 
   group('roleLabel', () {
     test('title-cases the roles the gateway issues', () {

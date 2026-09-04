@@ -2,8 +2,9 @@
  * Upload and render directories.
  *
  * `incoming/` holds only in-flight uploads and per-render scratch; the render
- * path deletes both when it finishes. `renders/` holds the finished MP4s and is
- * never swept — those are the product.
+ * path deletes both when it finishes. `renders/` holds the finished MP4s, kept
+ * until the sweeper's TTL takes them — see services/sweeper.ts, which is what
+ * stops the volume filling.
  */
 
 import { mkdir, rm } from 'node:fs/promises';

@@ -11,7 +11,6 @@ import 'package:boloshop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 const storedSession = StoredSession(
   token: 'stored.jwt',
@@ -88,10 +87,6 @@ Future<void> pumpApp(WidgetTester tester, {required TokenStore store}) async {
 }
 
 void main() {
-  setUpAll(() {
-    // Otherwise every test would try to fetch Inter over the network.
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
 
   testWidgets('opens the feed when a token survived the last run', (
     tester,
