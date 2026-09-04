@@ -110,7 +110,8 @@ jobs:
   mobile:
     name: Flutter app
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The release bundle adds a Gradle run on top of analyze and test.
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -118,6 +119,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # The Android Gradle Plugin wants 17, and the runner image's default has
+      # moved before. Pinning it keeps the release build off that.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -136,6 +145,17 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
+      # Gradle's own caches, which dominate the release build's time.
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/android/**/*.gradle*', 'boloshop/apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install packages
         run: flutter pub get
 
@@ -144,3 +164,24 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # The only place the release configuration is actually exercised. R8,
+      # the keep rules in android/app/proguard-rules.pro and the production
+      # EnvConfig are all release-only: analyze and test never touch them, and
+      # a rule that strips flutter_secure_storage would otherwise be found by
+      # a user signed out on every launch.
+      #
+      # The Android SDK is preinstalled on the runner image. With no
+      # android/key.properties the bundle is signed with the debug key and
+      # cannot be uploaded to Play — the point here is that it builds, not that
+      # it ships.
+      - name: Build release app bundle
+        run: flutter build appbundle --dart-define=APP_ENV=production
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: boloshop/apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
