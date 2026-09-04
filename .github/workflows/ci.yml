@@ -14,6 +14,25 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # Run by hand to get an APK pointed at a backend of your choosing — a
+  # deployed hostname, or a machine on your LAN. Leave the URLs blank and the
+  # APK is a development build: it reaches nothing, shows the sample feed and
+  # says so, which is enough to walk through every screen.
+  workflow_dispatch:
+    inputs:
+      app_env:
+        description: Environment for the test APK
+        type: choice
+        options: [development, staging, production]
+        default: development
+      gateway_base_url:
+        description: "Override the gateway URL, e.g. https://api.example.com (https required outside development)"
+        type: string
+        default: ""
+      order_service_base_url:
+        description: "Override the order service URL"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -183,5 +202,39 @@ jobs:
         with:
           name: app-release-aab
           path: boloshop/apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
+
+      # An .aab cannot be installed on a phone — Play unpacks it into per-device
+      # APKs. This is the artifact a person can actually sideload and open.
+      # Universal rather than split-per-abi so one file runs on any device.
+      #
+      # Defaults to the development environment on the automatic runs, which
+      # makes it self-contained: it reaches no backend, falls back to the
+      # sample feed and says so in a pill under the status bar. Dispatch the
+      # workflow by hand to point one at a real backend.
+      - name: Build installable APK
+        env:
+          APP_ENV: ${{ inputs.app_env }}
+          GATEWAY_BASE_URL: ${{ inputs.gateway_base_url }}
+          ORDER_SERVICE_BASE_URL: ${{ inputs.order_service_base_url }}
+        run: |
+          set -euo pipefail
+          defines="--dart-define=APP_ENV=${APP_ENV:-development}"
+          if [ -n "${GATEWAY_BASE_URL:-}" ]; then
+            defines="$defines --dart-define=GATEWAY_BASE_URL=${GATEWAY_BASE_URL}"
+          fi
+          if [ -n "${ORDER_SERVICE_BASE_URL:-}" ]; then
+            defines="$defines --dart-define=ORDER_SERVICE_BASE_URL=${ORDER_SERVICE_BASE_URL}"
+          fi
+          echo "Building with: $defines"
+          # shellcheck disable=SC2086
+          flutter build apk --release $defines
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: boloshop/apps/mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

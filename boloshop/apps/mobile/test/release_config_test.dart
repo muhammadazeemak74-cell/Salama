@@ -31,6 +31,24 @@ void main() {
     });
   });
 
+  test('permits cleartext only to the loopback hosts development uses', () {
+    // Without the config a development build cannot reach localhost or the
+    // emulator's host alias at all, and fails with a connection error that
+    // reads as the backend being down. Widening it to the whole application
+    // would let the shipped app send the session JWT in the clear.
+    final config = File(
+      'android/app/src/main/res/xml/network_security_config.xml',
+    ).readAsStringSync();
+
+    expect(manifest, contains('@xml/network_security_config'));
+    expect(config, contains('<base-config cleartextTrafficPermitted="false"'));
+    for (final host in ['localhost', '127.0.0.1', '10.0.2.2']) {
+      expect(config, contains('>$host<'));
+    }
+    // A blanket permission would defeat the point of the file.
+    expect(manifest, isNot(contains('usesCleartextTraffic="true"')));
+  });
+
   group('Android release build', () {
     test('shrinks and obfuscates', () {
       expect(gradle, contains('isMinifyEnabled = true'));
