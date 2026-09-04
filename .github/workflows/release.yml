@@ -1,0 +1,143 @@
+# Publishes a sideloadable BoloShop APK as a GitHub Release.
+#
+# The CI workflow already builds this APK, but an Actions artifact is not a
+# way to hand someone an app: GitHub requires a signed-in session to download
+# an artifact even from a public repository, and serves anonymous visitors a
+# 404 rather than a login prompt. It also arrives as a .zip, which a phone
+# browser will not install. A release asset is a plain public file that
+# Android installs straight from the download.
+#
+# Triggered by pushing a tag:
+#   git tag boloshop-v0.1.0-preview.1
+#   git push origin boloshop-v0.1.0-preview.1
+
+name: Release APK
+
+on:
+  push:
+    tags:
+      - "boloshop-v*"
+
+# Creating the release and uploading the asset both need write access to repo
+# contents. This is the only workflow here that has it.
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: boloshop/apps/mobile
+
+jobs:
+  release:
+    name: Build and publish APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('boloshop/apps/mobile/android/**/*.gradle*', 'boloshop/apps/mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install packages
+        run: flutter pub get
+
+      # Cheap next to the Gradle build, and stops a tag from publishing an APK
+      # that the test suite would have rejected.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # Development rather than production: there is no deployed backend to
+      # point this at. A development build is self-contained — it reaches no
+      # network, falls back to the sample feed and says so in a pill under the
+      # status bar, which is what makes it walkable on a phone with nothing
+      # else running. CI's workflow_dispatch builds one aimed at a real
+      # backend when there is one.
+      - name: Build installable APK
+        run: flutter build apk --release --dart-define=APP_ENV=development
+
+      # Rename off Flutter's generic app-release.apk so the downloaded file
+      # says what it is once it is sitting in a phone's Downloads folder.
+      - name: Name the asset
+        id: asset
+        run: |
+          set -euo pipefail
+          src=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$src"
+          name="boloshop-${GITHUB_REF_NAME#boloshop-}-development.apk"
+          cp "$src" "$name"
+          echo "path=boloshop/apps/mobile/$name" >> "$GITHUB_OUTPUT"
+          echo "Built $name ($(du -h "$name" | cut -f1))"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET: ${{ steps.asset.outputs.path }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          cat > "$notes" <<'NOTES'
+          A preview build of the BoloShop Android app, for walking through the
+          UI on a real phone. Download the `.apk` below and open it; Android
+          will ask you to allow installs from your browser the first time.
+
+          ### What this build does
+
+          It is a **development** build with no backend attached. It starts on
+          the phone-login screen, and requesting an OTP will fail — that is the
+          auth gate working, not a bug. Everything else runs against a bundled
+          sample feed, and a pill under the status bar says so. You can browse
+          the video feed, open the solo and team buy sheets, and use the voice
+          search sheet.
+
+          ### What it is not
+
+          - **Signed with the Android debug key**, because no release keystore
+            exists yet. It sideloads, but it cannot be uploaded to Play. Create
+            `android/key.properties` from the committed example to change that.
+          - **Not connected to anything.** Cash-on-delivery orders, team buys,
+            OTP login and promo rendering all need the API gateway, the order
+            service and the media service running. `docker compose up` in
+            `boloshop/` starts all three; an Android emulator reaches them at
+            `10.0.2.2`, which the app's network security config permits.
+          - The internal versionName is Flutter's default `1.0.0`. App
+            versioning is not wired to these tags yet.
+
+          Universal APK — one file, every ABI — so it installs on any device.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" "$ASSET" \
+            --title "BoloShop ${GITHUB_REF_NAME#boloshop-} (preview)" \
+            --notes-file "$notes" \
+            --prerelease \
+            --verify-tag
