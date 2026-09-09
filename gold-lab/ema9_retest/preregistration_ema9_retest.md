@@ -5,8 +5,10 @@
 No price data has been loaded. The geometry pre-check has NOT been run — it is
 blocked (see §9).**
 
-Trial **55**. Inherited ledger: 54 prior runs on this dataset.
-See §7 for why 55 is a lower bound and, in this family, a weak one.
+Trial number: **UNRESOLVED — see §7.1.** The previously recorded "trial 55,
+inherited 54" is known to be wrong: a `three_breakout` study consumed further
+configurations against this same holdout without reaching the ledger. The
+corrected count must be established before this family is registered.
 
 ---
 
@@ -177,20 +179,54 @@ This is trial 55 against 54 inherited runs on this dataset.
 The author's original search over these six parameters has an **unknown trial
 count**. Therefore:
 
-> **The DSR trial count of 55 is a LOWER BOUND and must be labelled as such
-> wherever it appears.**
+> **The DSR trial count is UNINFORMATIVE in this family. Not merely a lower
+> bound — uninformative. It must be reported with that word attached.**
 
-Stated plainly, and before any result: a six-parameter search over a plausible
-grid could be 10³–10⁵ trials. Against an unknown count of that magnitude, a
-lower bound of 55 is not merely imprecise — a DSR computed from it is close to
-uninformative, and must not be presented as though the multiple-testing burden
-had been accounted for. It has not been. It cannot be, without the author's
-search log.
+Stated plainly, and before any result. A six-parameter search over any
+plausible grid is on the order of **10³–10⁵ trials**. Our count — whatever the
+reconciliation in §7.1 settles it at — will be in the tens or low hundreds.
+A number three orders of magnitude too small is not a conservative estimate of
+the multiple-testing burden; it is a different quantity entirely, and dressing
+it up as "a lower bound" invites exactly the reading it does not support.
 
-The evidentiary weight in this family therefore rests on the two things that do
-not depend on that count: the **clean 2015–2021 window** (§5) and the
-**by-year concentration check** (§6.1). The DSR is reported for completeness
-and is explicitly not load-bearing.
+So: the multiple-testing burden of this family **has not been accounted for and
+cannot be**, without the original author's search log. No DSR figure computed
+here may be presented as though it had been.
+
+> **The evidentiary weight of this family rests ENTIRELY on two things: the
+> clean 2015–2021 window (§5) and the by-year concentration check (§6.1).**
+
+Both are independent of the trial count. The DSR is reported for completeness,
+is explicitly not load-bearing, and cannot on its own move a verdict in either
+direction.
+
+### 7.1 Ledger reconciliation — REQUIRED BEFORE REGISTRATION
+
+The recorded "54 prior runs" is known to undercount. A `three_breakout` study
+(commit `a067f72`, "three_breakout: imported, reconciled, REJECTED on criterion
+1(a)") ran configurations against this same XAUUSD holdout on a branch that
+never merged, so the ledger cannot see them. A run that happened but is not
+counted is precisely the leak this protocol exists to prevent.
+
+**This family is not registered until that reconciliation is done.** The
+corrected total replaces 54, and `ema9_retest` takes the next number after it.
+
+Two things the reconciliation must settle, neither of which may be decided
+after seeing any `ema9_retest` result:
+
+1. **The configuration count in that commit.** If it ran the grid frozen in
+   `three_breakout/ACCEPTANCE_CRITERIA.md` §2 unchanged, that is 5 timeframes ×
+   3 expiries × 2 stops × 3 targets = **90 per polarity, 180 across green and
+   red**. This is a strong prior, not a reading — the commit has not been read
+   (see §9) and the number must come from the commit, not from this inference.
+2. **Whether the ledger counts polarities separately.** 180 configurations is
+   180 trials under a per-configuration convention and 90 under a per-family
+   one. The existing convention governs; it is not chosen here.
+
+Under the per-configuration reading the corrected total would be 54 + 180 =
+**234**, making this family trial **235**. That figure is recorded as an
+expectation to be confirmed or corrected against the commit, and is **not** to
+be used until it has been.
 
 ## 8. Inherited conventions (to be bound, not re-decided)
 
